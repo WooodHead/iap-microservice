@@ -1,0 +1,51 @@
+{
+  "name": "iap-microservice",
+  "version": "0.0.1",
+  "description": "Microservice for processing Apple and Google in app purchases",
+  "main": "index.js",
+  "author": "se1exin",
+  "license": "MIT",
+  "scripts": {
+    "ci": "jest --ci --colors --detectOpenHandles",
+    "test": "jest --detectOpenHandles --setupFiles dotenv/config",
+    "lint": "tsc --noEmit && eslint \"src/**/*.{js,ts}\"",
+    "lint:fix": "yarn lint --quiet --fix",
+    "build-ts": "tsc",
+    "build": "yarn lint && yarn build-ts",
+    "build:fix": "yarn lint:fix && yarn build-ts",
+    "watch": "NODE_ENV=development ts-node-dev --transpile-only --exit-child -r dotenv/config src/index.ts",
+    "run:dev": "NODE_ENV=development node -r dotenv/config -r source-map-support/register dist/index.js",
+    "run:prod": "NODE_ENV=production node -r source-map-support/register dist/index.js",
+    "run:with": "node -r dotenv/config -r source-map-support/register",
+    "start:quick": "yarn build-ts && yarn run:dev",
+    "start": "yarn build && yarn run:dev",
+    "start:fix": "yarn build:fix && yarn run:dev",
+    "version:major": "yarn version --major",
+    "version:minor": "yarn version --minor",
+    "version:patch": "yarn version --patch"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.23",
+    "@typescript-eslint/eslint-plugin": "^4.28.0",
+    "@typescript-eslint/parser": "^4.28.0",
+    "eslint": "^7.29.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^3.4.0",
+    "eslint-plugin-simple-import-sort": "^7.0.0",
+    "husky": "^6.0.0",
+    "jest": "^27.0.5",
+    "prettier": "^2.3.2",
+    "ts-jest": "^27.0.3",
+    "ts-node": "^10.0.0",
+    "ts-node-dev": "^1.1.6",
+    "typescript": "^4.3.4"
+  },
+  "dependencies": {
+    "dotenv": "^10.0.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn lint"
+    }
+  }
+}
