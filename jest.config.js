@@ -1,14 +1,14 @@
 module.exports = {
-  roots: ['<rootDir>/src'],
+  roots: ["<rootDir>/src"],
   preset: "ts-jest",
   testEnvironment: "node",
   collectCoverage: true,
-  coverageDirectory: 'coverage',
+  coverageDirectory: "coverage",
   collectCoverageFrom: [
-      '**/*{.js,.ts}',
-      '!src/index.ts',
-      '!**/test-data.ts',
-      '!**/*.d.ts',
+    "**/*{.js,.ts}",
+    "!src/index.ts",
+    "!**/test-data.ts",
+    "!**/*.d.ts",
   ],
   // coverageThreshold: {
   //   global: {
@@ -19,4 +19,7 @@ module.exports = {
   //   },
   // },
   verbose: true,
+  automock: false,
+  resetMocks: false,
+  setupFiles: ["./setupJest.js"],
 };
