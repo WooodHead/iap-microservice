@@ -418,8 +418,8 @@ describe("Process Subscription Tests", () => {
 
   each([
     ["100000", true, false],
-    [new Date(new Date().getTime() + 60).getTime().toString(), false, true], // Future Date
-    [new Date(new Date().getTime() - 60).getTime().toString(), false, false], // Past Date
+    [new Date(new Date().getTime() + 5000).getTime().toString(), false, true], // Future Date
+    [new Date(new Date().getTime() - 5000).getTime().toString(), false, false], // Past Date
   ]).test("Test isSubscriptionActive", (timestamp, isRefunded, expected) => {
     const receipt: any = {
       latest_receipt_info: [
@@ -436,8 +436,8 @@ describe("Process Subscription Tests", () => {
   });
 
   each([
-    [new Date(new Date().getTime() + 60).getTime().toString(), true], // Future Date
-    [new Date(new Date().getTime() - 60).getTime().toString(), false], // Past Date
+    [new Date(new Date().getTime() + 5000).getTime().toString(), true], // Future Date
+    [new Date(new Date().getTime() - 5000).getTime().toString(), false], // Past Date
     [undefined, false], // Past Date
   ]).test("Test isSubscriptionGracePeriod", (timestamp, expected) => {
     const receipt: any = {
