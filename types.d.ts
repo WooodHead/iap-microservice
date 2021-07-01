@@ -18,21 +18,27 @@ export type SubscriptionState =
   | "paused";
 
 export type Purchase = {
+  id?: number;
+  linkedPurchaseId?: number;
+  originalPurchaseId?: number;
+  userId?: string; // Arbitrary ID provided by user
+
   // Generic Order Properties
   isSandbox: boolean;
   isRefunded: boolean;
   quantity: number;
   platform: "android" | "ios";
-  orderId: string;
+  orderId?: string;
   productSku: string;
   purchaseDate: Date;
-  refundDate?: Date;
-  refundReason?: "issue" | "subscription_replace" | "other";
+  receiptDate: Date;
+  refundDate: Date | null;
+  refundReason: "issue" | "subscription_replace" | "other" | null;
 
   // Subscription Flags
+  isSubscription: boolean;
   isTrial?: boolean;
   isIntroOfferPeriod?: boolean;
-  isSubscription: boolean;
   isSubscriptionActive?: boolean;
   isSubscriptionRenewable?: boolean;
   isSubscriptionRetryPeriod?: boolean;
@@ -51,28 +57,7 @@ export type Purchase = {
   linkedToken?: string; // Android only
 
   /*
-  userAccountId: string; // References UserAccount.id
-  linkedPurchaseId?: string; // Previous Purchase ID
-  originalPurchaseId?: string; // Previous Purchase ID
-  subscriptionId?: string; // If this was for a subscription, the ID of that subscription
-  iaphubListingId: string;
-  iaphubUserId: string;
-  iaphubReceiptId: string;
-  iaphubPurchaseId: string;
-  iaphubOriginalPurchaseId?: string;
-  iaphubLinkedPurchaseId?: string;
-  iaphubProductId: string;
-  iaphubStoreId: string;
-  productType: IAPHubProductType;
-  productGroupName?: string;
-  currency: string;
-  price: number;
-  convertedCurrency: string;
-  convertedPrice: number;
-  refundAmount?: number;
-  convertedRefundAmount?: number;
-  subscriptionRenewalProduct?: string; // Product ID of next renewal
+  // Are these needed?
   subscriptionRenewalProductSku?: string;
-
    */
 };

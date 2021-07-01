@@ -1,0 +1,58 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Purchase {
+  id                 Int       @id @default(autoincrement())
+  linkedPurchaseId   Int?
+  linkedPurchase     Purchase? @relation(fields: [linkedPurchaseId], references: [id], name: "linkedPurchase")
+  originalPurchaseId Int?
+  originalPurchase   Purchase? @relation(fields: [originalPurchaseId], references: [id], name: "originalPurchase")
+  userId             String?   @db.VarChar(255)
+
+  orderId         String?   @unique @db.VarChar(255)
+  originalOrderId String?   @db.VarChar(255)
+  purchaseDate    DateTime  @default(now())
+  receiptDate     DateTime  @default(now())
+  refundDate      DateTime?
+  refundReason    String?   @db.VarChar(255)
+  isRefunded      Boolean   @default(false)
+  isSandbox       Boolean   @default(false)
+  productSku      String    @db.VarChar(255)
+  quantity        Int       @default(0)
+  platform        String    @db.VarChar(7)
+
+  isTrial                   Boolean?
+  isTrialConversion         Boolean?
+  isIntroOfferPeriod        Boolean?
+  isSubscription            Boolean  @default(false)
+  isSubscriptionActive      Boolean?
+  isSubscriptionRenewable   Boolean?
+  isSubscriptionRetryPeriod Boolean?
+  isSubscriptionGracePeriod Boolean?
+
+  subscriptionPeriodType String?   @db.VarChar(255)
+  subscriptionState      String?   @db.VarChar(255)
+  subscriptionGroup      String?   @db.VarChar(255)
+  cancellationReason     String?   @db.VarChar(255)
+  expirationDate         DateTime?
+  gracePeriodEndDate     DateTime?
+  token                  String?   @db.Text
+  linkedToken            String?   @db.Text
+  createdAt              DateTime  @default(now())
+  modifiedAt             DateTime  @updatedAt
+
+  linkedPurchases   Purchase[] @relation("linkedPurchase")
+  originalPurchases Purchase[] @relation("originalPurchase")
+
+  @@index(fields: [originalOrderId])
+  @@map("purchases")
+}

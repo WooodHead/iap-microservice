@@ -71,75 +71,132 @@ export default class Apple implements IAPProvider {
     }
   }
 
-  processPurchase(
-    receipt: AppleVerifyReceiptResponseBodySuccess,
-    token: string
-  ): Purchase {
-    const transactions = Apple.getTransactions(receipt);
-    const latestTransaction = transactions[0];
+  parseReceipt(receipt: AppleVerifyReceiptResponseBodySuccess): Purchase[] {
+    // The receipt contains both receipt.in_app and latest_receipt_info arrays
+    // The most recent item in receipt.in_app is the actual transaction that
+    // triggered the receipt, but if there are subscriptions associated with
+    // the user then some (but not all?) subscription transactions can appear
+    // in here is well.
+    // latest_receipt_info will contain the full list of subscription transactions
+    // up-to-date at the time the receipt is validated.
 
+    const isSandbox = this.isSandbox(receipt);
+    const receiptDate = new Date(
+      parseInt(receipt.receipt.receipt_creation_date_ms)
+    );
+
+    const transactions = this.mergeTransactions(
+      receipt.receipt.in_app,
+      receipt.latest_receipt_info || []
+    );
+
+    const purchases: Purchase[] = [];
+
+    for (const transaction of transactions) {
+      if (!this.isSubscription(transaction)) {
+        purchases.push(
+          this.processPurchaseTransaction(transaction, receiptDate, isSandbox)
+        );
+      } else {
+        purchases.push(
+          this.processSubscriptionTransaction(transaction, receipt)
+        );
+      }
+    }
+    return purchases;
+  }
+
+  processPurchaseTransaction(
+    transaction: AppleInAppPurchaseTransaction,
+    receiptDate: Date,
+    isSandbox: boolean
+  ): Purchase {
     const purchase: Purchase = {
-      isRefunded: !!latestTransaction.cancellation_date_ms,
-      isSandbox: receipt.environment === "Sandbox",
-      isSubscription: !!latestTransaction.expires_date,
-      orderId: latestTransaction.transaction_id,
+      isRefunded: !!transaction.cancellation_date_ms,
+      isSandbox,
+      receiptDate,
+      isSubscription: !!transaction.expires_date,
+      orderId: transaction.transaction_id,
       platform: "ios",
-      productSku: latestTransaction.product_id,
-      purchaseDate: new Date(parseInt(latestTransaction.purchase_date_ms)),
-      quantity: parseInt(latestTransaction.quantity),
-      token: receipt.latest_receipt || token,
+      productSku: transaction.product_id,
+      purchaseDate: new Date(parseInt(transaction.purchase_date_ms)),
+      quantity: parseInt(transaction.quantity),
+      refundDate: null,
+      refundReason: null,
     };
 
     if (purchase.isRefunded) {
-      if (latestTransaction.cancellation_reason === "1") {
+      if (transaction.cancellation_reason === "1") {
         purchase.refundReason = "issue";
-      } else if (latestTransaction.cancellation_reason === "0") {
+      } else if (transaction.cancellation_reason === "0") {
         purchase.refundReason = "other";
       }
     }
-    if (latestTransaction.cancellation_date_ms) {
+    if (transaction.cancellation_date_ms) {
       purchase.refundDate = new Date(
-        parseInt(latestTransaction.cancellation_date_ms)
+        parseInt(transaction.cancellation_date_ms)
       );
     }
-
-    if (purchase.isSubscription) {
-      return this.processSubscriptionPurchase(purchase, receipt);
-    }
-
     return purchase;
   }
 
-  processSubscriptionPurchase(
-    purchase: Purchase,
+  processSubscriptionTransaction(
+    transaction: AppleInAppPurchaseTransaction,
     receipt: AppleVerifyReceiptResponseBodySuccess
   ): Purchase {
-    const renewalInfo = receipt.pending_renewal_info?.find(
-      (item) => item.original_transaction_id === purchase.originalOrderId
+    const isSandbox = this.isSandbox(receipt);
+    const receiptDate = new Date(
+      parseInt(receipt.receipt.receipt_creation_date_ms)
     );
-    const transactions = Apple.getTransactions(receipt).filter(
-      (trans) => !!trans.expires_date_ms
+    const purchase = this.processPurchaseTransaction(
+      transaction,
+      receiptDate,
+      isSandbox
     );
-    const latestTransaction = transactions[0];
 
-    purchase.originalOrderId = latestTransaction.original_transaction_id;
-    purchase.expirationDate = new Date(
-      parseInt(latestTransaction.expires_date_ms)
-    );
+    const renewalInfo = receipt.pending_renewal_info?.find((item) => {
+      return (
+        item.original_transaction_id === transaction.original_transaction_id &&
+        item.product_id === transaction.product_id
+      );
+    });
+    const priorTransactions = receipt.latest_receipt_info
+      .sort(Apple.sortTransactionsDesc)
+      .filter((item) => {
+        return (
+          item.original_transaction_id ===
+            transaction.original_transaction_id &&
+          parseInt(item.purchase_date_ms) <=
+            parseInt(transaction.purchase_date_ms)
+        );
+      });
+
+    const originalOrder = this.getOriginalOrder(transaction, priorTransactions);
+
+    // For subscriptions we use the 'web_order_line_item_id' instead of 'transaction_id'
+    // to identify a Purchase
+    purchase.orderId = transaction.web_order_line_item_id;
+    purchase.originalOrderId = originalOrder.web_order_line_item_id;
+    purchase.expirationDate = new Date(parseInt(transaction.expires_date_ms));
     purchase.isSubscriptionActive = false;
     purchase.isTrialConversion = false;
-    purchase.isTrial = latestTransaction.is_trial_period === "true";
+    purchase.isTrial = transaction.is_trial_period === "true";
     purchase.isIntroOfferPeriod =
-      latestTransaction.is_in_intro_offer_period === "true";
+      transaction.is_in_intro_offer_period === "true";
     purchase.isSubscriptionRenewable =
       renewalInfo?.auto_renew_status === "1" || false;
     purchase.isSubscriptionRetryPeriod =
       renewalInfo?.is_in_billing_retry_period === "1" || false;
     purchase.isSubscriptionGracePeriod = false;
 
+    if (originalOrder.subscription_group_identifier) {
+      purchase.subscriptionGroup = originalOrder.subscription_group_identifier;
+    }
+
     // Purchase a trial conversion if this one is not a trial, but the one before it is
-    if (!purchase.isTrial && transactions.length > 1) {
-      purchase.isTrialConversion = transactions[1].is_trial_period === "true";
+    if (!purchase.isTrial && priorTransactions.length > 1) {
+      purchase.isTrialConversion =
+        priorTransactions[1].is_trial_period === "true";
     }
 
     // Subscription is active if the expiration date is in future, or if Grace Period is set and is still in future
@@ -171,6 +228,25 @@ export default class Apple implements IAPProvider {
     purchase.subscriptionState = this.getSubscriptionState(purchase);
 
     return purchase;
+  }
+
+  isSandbox(receipt: AppleVerifyReceiptResponseBodySuccess): boolean {
+    return receipt.environment === "Sandbox";
+  }
+
+  isSubscription(
+    transaction: AppleInAppPurchaseTransaction | AppleLatestReceiptInfo
+  ): boolean {
+    return !!transaction.expires_date;
+  }
+
+  getOriginalOrder(
+    transaction: AppleInAppPurchaseTransaction,
+    otherTransactions: AppleLatestReceiptInfo[]
+  ): AppleLatestReceiptInfo {
+    return otherTransactions.find((item) => {
+      return item.transaction_id === transaction.original_transaction_id;
+    });
   }
 
   getSubscriptionPeriodType(purchase: Purchase): SubscriptionPeriodType {
@@ -235,14 +311,23 @@ export default class Apple implements IAPProvider {
     }
   }
 
-  static getTransactions(
-    receipt: AppleVerifyReceiptResponseBodySuccess
-  ): (AppleInAppPurchaseTransaction | AppleLatestReceiptInfo)[] {
-    return (receipt.latest_receipt_info || [])
-      .concat(receipt.receipt?.in_app || [])
-      .sort((a, b) => {
-        return parseInt(b.purchase_date_ms) - parseInt(a.purchase_date_ms);
-      });
+  mergeTransactions(
+    inAppTransactions: AppleInAppPurchaseTransaction[],
+    latestReceiptInfo: AppleLatestReceiptInfo[]
+  ): AppleInAppPurchaseTransaction[] {
+    const inAppIds = inAppTransactions.map((item) => item.transaction_id);
+    const orphaned = latestReceiptInfo.filter(
+      (item) => inAppIds.indexOf(item.transaction_id) === -1
+    );
+
+    return inAppTransactions.concat(orphaned).sort(Apple.sortTransactionsDesc);
+  }
+
+  static sortTransactionsDesc(
+    a: AppleInAppPurchaseTransaction | AppleLatestReceiptInfo,
+    b: AppleInAppPurchaseTransaction | AppleLatestReceiptInfo
+  ): number {
+    return parseInt(b.purchase_date_ms) - parseInt(a.purchase_date_ms);
   }
 
   private static handleError(code: number): Error {
