@@ -160,16 +160,18 @@ export default class Apple implements IAPProvider {
         item.product_id === transaction.product_id
       );
     });
-    const priorTransactions = receipt.latest_receipt_info
-      .sort(Apple.sortTransactionsDesc)
-      .filter((item) => {
-        return (
-          item.original_transaction_id ===
-            transaction.original_transaction_id &&
-          parseInt(item.purchase_date_ms) <=
-            parseInt(transaction.purchase_date_ms)
-        );
-      });
+
+    const sortedLatestInfo = [...receipt.latest_receipt_info].sort(
+      Apple.sortTransactionsDesc
+    );
+
+    const priorTransactions = sortedLatestInfo.filter((item) => {
+      return (
+        item.original_transaction_id === transaction.original_transaction_id &&
+        parseInt(item.purchase_date_ms) <=
+          parseInt(transaction.purchase_date_ms)
+      );
+    });
 
     const originalOrder = this.getOriginalOrder(transaction, priorTransactions);
 

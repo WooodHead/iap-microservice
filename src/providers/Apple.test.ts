@@ -119,7 +119,7 @@ describe("Helper function tests", () => {
     [{ isTrial: false, isIntroOfferPeriod: false }, "normal"],
     [{ isTrial: true, isIntroOfferPeriod: false }, "trial"],
     [{ isTrial: false, isIntroOfferPeriod: true }, "intro"],
-  ]).test("getSubscriptionPeriodType", (purchase, expected) => {
+  ]).test("getSubscriptionPeriodType %s %s", (purchase, expected) => {
     const apple = new Apple("");
     expect(apple.getSubscriptionPeriodType(purchase)).toEqual(expected);
   });
@@ -209,12 +209,15 @@ describe("Helper function tests", () => {
       null,
       undefined,
     ],
-  ]).test("getSubscriptionPeriodType", (purchase, renewalInfo, expected) => {
-    const apple = new Apple("");
-    expect(apple.getCancellationReason(purchase, renewalInfo)).toEqual(
-      expected
-    );
-  });
+  ]).test(
+    "getSubscriptionPeriodType %s %s %s",
+    (purchase, renewalInfo, expected) => {
+      const apple = new Apple("");
+      expect(apple.getCancellationReason(purchase, renewalInfo)).toEqual(
+        expected
+      );
+    }
+  );
 
   it("Test getOriginalOrder", () => {
     const apple = new Apple("");
@@ -586,7 +589,7 @@ describe("Process Subscription Tests", () => {
     [new Date(new Date().getTime() + 5000).getTime().toString(), true], // Future Date
     [new Date(new Date().getTime() - 5000).getTime().toString(), false], // Past Date
     [undefined, false], // Past Date
-  ]).test("Test isSubscriptionGracePeriod", (timestamp, expected) => {
+  ]).test("Test isSubscriptionGracePeriod %s %s", (timestamp, expected) => {
     const receipt: any = {
       receipt: {
         in_app: [
