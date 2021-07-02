@@ -1,3 +1,5 @@
+export type Platform = "android" | "ios";
+
 export type CancellationReason =
   | "refunded"
   | "customer_cancelled"
@@ -17,17 +19,29 @@ export type SubscriptionState =
   | "retry_period"
   | "paused";
 
-export type Purchase = {
-  id?: number;
-  linkedPurchaseId?: number;
-  originalPurchaseId?: number;
-  userId?: string; // Arbitrary ID provided by user
+export type SubscriptionStatus =
+  | "unknown"
+  | "active"
+  | "expired"
+  | "cancelled"
+  | "refunded"
+  | "trial"
+  | "grace_period"
+  | "retry_period"
+  | "paused";
 
+export type Purchase = {
+  id?: string;
+  linkedPurchaseId?: string;
+  originalPurchaseId?: string;
+  receiptId: string;
+
+  userId?: string; // Arbitrary ID provided by user
   // Generic Order Properties
   isSandbox: boolean;
   isRefunded: boolean;
   quantity: number;
-  platform: "android" | "ios";
+  platform: Platform;
   orderId?: string;
   productSku: string;
   purchaseDate: Date;
@@ -47,8 +61,10 @@ export type Purchase = {
 
   // Additional Subscription Info
   originalOrderId?: string;
+  linkedOrderId?: string;
   subscriptionPeriodType?: SubscriptionPeriodType;
   subscriptionState?: SubscriptionState;
+  subscriptionStatus?: SubscriptionStatus;
   subscriptionGroup?: string;
   cancellationReason?: CancellationReason;
   expirationDate?: Date;
@@ -60,4 +76,13 @@ export type Purchase = {
   // Are these needed?
   subscriptionRenewalProductSku?: string;
    */
+};
+
+export type Receipt = {
+  id?: string;
+  hash: string;
+  userId?: string; // Arbitrary ID provided by user
+  platform: Platform;
+  token: string;
+  data: any;
 };

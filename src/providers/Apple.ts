@@ -14,6 +14,7 @@ import {
   Purchase,
   SubscriptionPeriodType,
   SubscriptionState,
+  SubscriptionStatus,
 } from "../../types";
 import { IAPProvider } from "./IAPProvider";
 
@@ -71,7 +72,10 @@ export default class Apple implements IAPProvider {
     }
   }
 
-  parseReceipt(receipt: AppleVerifyReceiptResponseBodySuccess): Purchase[] {
+  parseReceipt(
+    receipt: AppleVerifyReceiptResponseBodySuccess,
+    includeNewer: boolean
+  ): Purchase[] {
     // The receipt contains both receipt.in_app and latest_receipt_info arrays
     // The most recent item in receipt.in_app is the actual transaction that
     // triggered the receipt, but if there are subscriptions associated with
@@ -87,7 +91,8 @@ export default class Apple implements IAPProvider {
 
     const transactions = this.mergeTransactions(
       receipt.receipt.in_app,
-      receipt.latest_receipt_info || []
+      receipt.latest_receipt_info || [],
+      includeNewer
     );
 
     const purchases: Purchase[] = [];
@@ -112,6 +117,7 @@ export default class Apple implements IAPProvider {
     isSandbox: boolean
   ): Purchase {
     const purchase: Purchase = {
+      receiptId: null,
       isRefunded: !!transaction.cancellation_date_ms,
       isSandbox,
       receiptDate,
@@ -174,11 +180,16 @@ export default class Apple implements IAPProvider {
     });
 
     const originalOrder = this.getOriginalOrder(transaction, priorTransactions);
+    const linkedOrder =
+      priorTransactions.length > 1 ? priorTransactions[1] : null;
 
     // For subscriptions we use the 'web_order_line_item_id' instead of 'transaction_id'
     // to identify a Purchase
     purchase.orderId = transaction.web_order_line_item_id;
     purchase.originalOrderId = originalOrder.web_order_line_item_id;
+    purchase.linkedOrderId = linkedOrder
+      ? linkedOrder.web_order_line_item_id
+      : null;
     purchase.expirationDate = new Date(parseInt(transaction.expires_date_ms));
     purchase.isSubscriptionActive = false;
     purchase.isTrialConversion = false;
@@ -228,6 +239,7 @@ export default class Apple implements IAPProvider {
     );
 
     purchase.subscriptionState = this.getSubscriptionState(purchase);
+    purchase.subscriptionStatus = Apple.getSubscriptionStatus(purchase);
 
     return purchase;
   }
@@ -313,14 +325,89 @@ export default class Apple implements IAPProvider {
     }
   }
 
+  static getSubscriptionStatus(purchase: Purchase): SubscriptionStatus {
+    if (!purchase.isSubscription) {
+      return null;
+    }
+
+    let status: SubscriptionStatus = "unknown";
+
+    if (
+      purchase.isRefunded &&
+      purchase.refundReason !== "subscription_replace"
+    ) {
+      status = "refunded";
+    } else if (purchase.subscriptionState === "paused") {
+      status = "paused";
+    } else if (
+      purchase.subscriptionState === "grace_period" ||
+      purchase.isSubscriptionGracePeriod
+    ) {
+      // Grace period is shorter than retry period so it goes first
+      status = "grace_period";
+    } else if (
+      purchase.subscriptionState === "retry_period" ||
+      purchase.isSubscriptionRetryPeriod
+    ) {
+      status = "retry_period";
+    } else if (
+      purchase.subscriptionState === "expired" ||
+      (!purchase.isSubscriptionActive && !purchase.isSubscriptionRenewable)
+    ) {
+      status = "expired";
+    } else if (
+      // Check for cancelled trial before normal sub - we immediately expired cancelled trials.
+      purchase.subscriptionPeriodType === "trial"
+    ) {
+      if (!purchase.isSubscriptionRenewable) {
+        status = "expired";
+      } else {
+        status = "trial";
+      }
+    } else if (
+      purchase.isSubscriptionActive &&
+      !purchase.isSubscriptionRenewable
+    ) {
+      // Has cancelled before expiration date
+      if (new Date() < purchase.expirationDate) {
+        status = "cancelled";
+      } else {
+        status = "expired";
+      }
+    } else if (purchase.subscriptionState === "active") {
+      status = "active";
+    }
+
+    return status;
+  }
+
+  /**
+   * Merge the in_app and latest_receipt_info arrays together into a single array
+   * of unique transactions. If a transaction exists in both arrays, the version
+   * inside in_app is kept
+   * @param inAppTransactions
+   * @param latestReceiptInfo
+   * @param includeNewer - Include transactions from latest_receipt_info that are newer than the latest in_app purchase
+   */
   mergeTransactions(
     inAppTransactions: AppleInAppPurchaseTransaction[],
-    latestReceiptInfo: AppleLatestReceiptInfo[]
+    latestReceiptInfo: AppleLatestReceiptInfo[],
+    includeNewer: boolean
   ): AppleInAppPurchaseTransaction[] {
+    inAppTransactions.sort(Apple.sortTransactionsDesc);
     const inAppIds = inAppTransactions.map((item) => item.transaction_id);
-    const orphaned = latestReceiptInfo.filter(
-      (item) => inAppIds.indexOf(item.transaction_id) === -1
-    );
+    let orphaned = latestReceiptInfo.filter((item) => {
+      return inAppIds.indexOf(item.transaction_id) === -1;
+    });
+
+    if (!includeNewer) {
+      orphaned = orphaned.filter((item) => {
+        return (
+          parseInt(item.purchase_date_ms) <
+          parseInt(inAppTransactions[0].purchase_date_ms)
+        );
+      });
+    }
 
     return inAppTransactions.concat(orphaned).sort(Apple.sortTransactionsDesc);
   }

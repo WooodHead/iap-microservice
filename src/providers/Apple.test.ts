@@ -8,6 +8,7 @@ import {
   AppleVerifyReceiptSuccessfulStatus,
 } from "types-apple-iap";
 
+import { Purchase } from "../../types";
 import Apple from "./Apple";
 
 describe("Apple Validate tests", () => {
@@ -41,7 +42,7 @@ describe("Apple Validate tests", () => {
   });
 
   // Test redirect to Sandbox
-  it("Redirects from Prod to Sandbox environment", async () => {
+  test("Redirects from Prod to Sandbox environment", async () => {
     expect.assertions(4);
     fetchMock.mockResponse((req) => {
       if (req.url.indexOf("sandbox") > -1) {
@@ -93,7 +94,7 @@ describe("Apple Validate tests", () => {
 });
 
 describe("Helper function tests", () => {
-  it("Gets transactions sorted descending", () => {
+  test("Gets transactions sorted descending", () => {
     const receipt = [
       { purchase_date_ms: "1000" },
       { purchase_date_ms: "3000" },
@@ -219,7 +220,7 @@ describe("Helper function tests", () => {
     }
   );
 
-  it("Test getOriginalOrder", () => {
+  test("Test getOriginalOrder", () => {
     const apple = new Apple("");
     const transaction: any = {
       transaction_id: "300",
@@ -240,7 +241,7 @@ describe("Helper function tests", () => {
     expect(order.transaction_id).toEqual("100");
   });
 
-  it("Test mergeTransactions", () => {
+  test("Test mergeTransactions - without newer", () => {
     const apple = new Apple("");
 
     const inAppTransactions: any[] = [
@@ -250,8 +251,8 @@ describe("Helper function tests", () => {
         in_app: true,
       },
       {
-        transaction_id: "200",
-        purchase_date_ms: "200000",
+        transaction_id: "300",
+        purchase_date_ms: "300000",
         in_app: true,
       },
     ];
@@ -266,23 +267,92 @@ describe("Helper function tests", () => {
         purchase_date_ms: "300000",
         in_app: false,
       },
+      {
+        transaction_id: "400",
+        purchase_date_ms: "400000",
+        in_app: false,
+      },
     ];
 
     const transactions = apple.mergeTransactions(
       inAppTransactions,
-      latestReceiptInfo
+      latestReceiptInfo,
+      false
     );
 
     expect(transactions).toEqual([
       {
         transaction_id: "300",
         purchase_date_ms: "300000",
-        in_app: false,
+        in_app: true,
       },
       {
         transaction_id: "200",
         purchase_date_ms: "200000",
+        in_app: false,
+      },
+      {
+        transaction_id: "100",
+        purchase_date_ms: "100000",
         in_app: true,
+      },
+    ]);
+  });
+
+  test("Test mergeTransactions - with newer", () => {
+    const apple = new Apple("");
+
+    const inAppTransactions: any[] = [
+      {
+        transaction_id: "100",
+        purchase_date_ms: "100000",
+        in_app: true,
+      },
+      {
+        transaction_id: "300",
+        purchase_date_ms: "300000",
+        in_app: true,
+      },
+    ];
+    const latestReceiptInfo: any[] = [
+      {
+        transaction_id: "200",
+        purchase_date_ms: "200000",
+        in_app: false,
+      },
+      {
+        transaction_id: "300",
+        purchase_date_ms: "300000",
+        in_app: false,
+      },
+      {
+        transaction_id: "400",
+        purchase_date_ms: "400000",
+        in_app: false,
+      },
+    ];
+
+    const transactions = apple.mergeTransactions(
+      inAppTransactions,
+      latestReceiptInfo,
+      true
+    );
+
+    expect(transactions).toEqual([
+      {
+        transaction_id: "400",
+        purchase_date_ms: "400000",
+        in_app: false,
+      },
+      {
+        transaction_id: "300",
+        purchase_date_ms: "300000",
+        in_app: true,
+      },
+      {
+        transaction_id: "200",
+        purchase_date_ms: "200000",
+        in_app: false,
       },
       {
         transaction_id: "100",
@@ -306,11 +376,11 @@ describe("Parse Receipt Tests", () => {
     };
 
     const apple = new Apple("");
-    const purchase = apple.parseReceipt(receipt);
+    const purchase = apple.parseReceipt(receipt, false);
     expect(purchase[0].isSandbox).toEqual(expected);
   });
 
-  it("Detects Subscription purchase", () => {
+  test("Detects Subscription purchase", () => {
     const apple = new Apple("");
     const mock = jest
       .spyOn(apple, "processSubscriptionTransaction")
@@ -325,7 +395,7 @@ describe("Parse Receipt Tests", () => {
       },
     };
 
-    apple.parseReceipt(receipt);
+    apple.parseReceipt(receipt, false);
     expect(mock.mock.calls.length).toEqual(1);
   });
 });
@@ -519,7 +589,7 @@ describe("Process Subscription Tests", () => {
     }
   );
 
-  it("Test isTrialConversion", () => {
+  test("Test isTrialConversion", () => {
     const receipt: any = {
       receipt: {
         in_app: [
@@ -616,7 +686,7 @@ describe("Process Subscription Tests", () => {
     expect(purchase.isSubscriptionGracePeriod).toEqual(expected);
   });
 
-  it("Attaches subscriptionGroup", () => {
+  test("Attaches subscriptionGroup", () => {
     jest.spyOn(apple, "getOriginalOrder").mockImplementation((a, b) => {
       return {
         subscription_group_identifier: "abc",
@@ -639,5 +709,119 @@ describe("Process Subscription Tests", () => {
       receipt
     );
     expect(purchase.subscriptionGroup).toEqual("abc");
+  });
+});
+
+describe("getSubscriptionStatus tests", () => {
+  test("Cancelled trial subscription is immediately expired", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      subscriptionPeriodType: "trial",
+      isSubscriptionActive: true,
+      isSubscriptionRenewable: false,
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("expired");
+  });
+
+  test("Active trial subscription is not expired", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      subscriptionPeriodType: "trial",
+      isSubscriptionRenewable: true,
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("trial");
+  });
+
+  test("Refunded subscription", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isRefunded: true,
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("refunded");
+  });
+
+  test("Subscription in Grace Period", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isSubscriptionGracePeriod: true,
+      isSubscriptionRetryPeriod: true,
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("grace_period");
+  });
+
+  test("Subscription in Retry Period", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isSubscriptionGracePeriod: false,
+      isSubscriptionRetryPeriod: true,
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("retry_period");
+  });
+
+  test("Cancelled and Not Active subscription is Expired", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isSubscriptionActive: false,
+      isSubscriptionRenewable: false,
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("expired");
+  });
+
+  test("Cancelled active subscription before expiry date", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isSubscriptionActive: true,
+      isSubscriptionRenewable: false,
+      expirationDate: new Date(new Date().getTime() + 5000), // Expire in the future
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("cancelled");
+  });
+
+  test("Cancelled active subscription after expiry date", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isSubscriptionActive: true,
+      isSubscriptionRenewable: false,
+      expirationDate: new Date(new Date().getTime() - 5000), // Expire in the past
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("expired");
+  });
+
+  test("Subscription is paused", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      subscriptionState: "paused",
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("paused");
+  });
+
+  test("Subscription is active", () => {
+    // @ts-ignore
+    const purchase: Purchase = {
+      isSubscription: true,
+      isSubscriptionActive: true,
+      isSubscriptionRenewable: true,
+      subscriptionState: "active",
+    };
+    const status = Apple.getSubscriptionStatus(purchase);
+    expect(status).toBe("active");
   });
 });

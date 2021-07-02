@@ -11,19 +11,22 @@ generator client {
 }
 
 model Purchase {
-  id                 Int       @id @default(autoincrement())
-  linkedPurchaseId   Int?
-  linkedPurchase     Purchase? @relation(fields: [linkedPurchaseId], references: [id], name: "linkedPurchase")
-  originalPurchaseId Int?
+  id                 String    @id @default(cuid())
+  receiptId          String
+  receipt            Receipt?  @relation(fields: [receiptId], references: [id], name: "receipt")
+  originalPurchaseId String?
   originalPurchase   Purchase? @relation(fields: [originalPurchaseId], references: [id], name: "originalPurchase")
-  userId             String?   @db.VarChar(255)
+  linkedPurchaseId   String?
+  linkedPurchase     Purchase? @relation(fields: [linkedPurchaseId], references: [id], name: "linkedPurchase")
 
+  userId          String?   @db.VarChar(255)
   orderId         String?   @unique @db.VarChar(255)
   originalOrderId String?   @db.VarChar(255)
+  linkedOrderId   String?   @db.VarChar(255)
   purchaseDate    DateTime  @default(now())
   receiptDate     DateTime  @default(now())
   refundDate      DateTime?
-  refundReason    String?   @db.VarChar(255)
+  refundReason    String?   @db.VarChar(20)
   isRefunded      Boolean   @default(false)
   isSandbox       Boolean   @default(false)
   productSku      String    @db.VarChar(255)
@@ -39,10 +42,11 @@ model Purchase {
   isSubscriptionRetryPeriod Boolean?
   isSubscriptionGracePeriod Boolean?
 
-  subscriptionPeriodType String?   @db.VarChar(255)
-  subscriptionState      String?   @db.VarChar(255)
+  subscriptionPeriodType String?   @db.VarChar(6)
+  subscriptionState      String?   @db.VarChar(12)
+  subscriptionStatus     String?   @db.VarChar(12)
   subscriptionGroup      String?   @db.VarChar(255)
-  cancellationReason     String?   @db.VarChar(255)
+  cancellationReason     String?   @db.VarChar(23)
   expirationDate         DateTime?
   gracePeriodEndDate     DateTime?
   token                  String?   @db.Text
@@ -53,6 +57,26 @@ model Purchase {
   linkedPurchases   Purchase[] @relation("linkedPurchase")
   originalPurchases Purchase[] @relation("originalPurchase")
 
+  @@index(fields: [userId])
+  @@index(fields: [orderId])
   @@index(fields: [originalOrderId])
+  @@index(fields: [linkedOrderId])
   @@map("purchases")
+}
+
+model Receipt {
+  id         String   @id @default(cuid())
+  userId     String?  @db.VarChar(255)
+  platform   String   @db.VarChar(7)
+  hash       String   @unique @db.Char(32)
+  token      String   @db.Text
+  data       Json     @db.Json
+  createdAt  DateTime @default(now())
+  modifiedAt DateTime @updatedAt
+
+  purchases Purchase[] @relation("receipt")
+
+  @@index(fields: [userId])
+  @@index(fields: [hash])
+  @@map("receipts")
 }
