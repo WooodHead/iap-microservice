@@ -16,6 +16,29 @@ export class MySQL implements Database {
     })) as Purchase;
   }
 
+  async getPurchaseById(id: string): Promise<Purchase> {
+    const purchase = await this.prisma.purchase.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    return purchase as Purchase;
+  }
+
+  async getPurchasesByUserId(userId: string): Promise<Purchase[]> {
+    const purchases = await this.prisma.purchase.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        purchaseDate: "desc",
+      },
+    });
+
+    return purchases as Purchase[];
+  }
+
   async getPurchaseByOrderId(orderId: string): Promise<Purchase> {
     const purchase = await this.prisma.purchase.findUnique({
       where: {
@@ -71,6 +94,25 @@ export class MySQL implements Database {
         userId: newUserId,
       },
     });
+  }
+
+  async getReceiptById(id: string): Promise<Receipt> {
+    return (await this.prisma.receipt.findUnique({
+      where: {
+        id: id,
+      },
+    })) as Receipt;
+  }
+
+  async getReceiptsByUserId(userId: string): Promise<Receipt[]> {
+    return (await this.prisma.receipt.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        receiptDate: "desc",
+      },
+    })) as Receipt[];
   }
 
   async getReceiptByHash(hash: string): Promise<Receipt> {

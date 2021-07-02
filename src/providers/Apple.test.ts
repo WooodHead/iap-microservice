@@ -376,8 +376,8 @@ describe("Parse Receipt Tests", () => {
     };
 
     const apple = new Apple("");
-    const purchase = apple.parseReceipt(receipt, false);
-    expect(purchase[0].isSandbox).toEqual(expected);
+    const result = apple.parseReceipt(receipt, "", false);
+    expect(result.purchases[0].isSandbox).toEqual(expected);
   });
 
   test("Detects Subscription purchase", () => {
@@ -395,7 +395,7 @@ describe("Parse Receipt Tests", () => {
       },
     };
 
-    apple.parseReceipt(receipt, false);
+    apple.parseReceipt(receipt, "", false);
     expect(mock.mock.calls.length).toEqual(1);
   });
 });

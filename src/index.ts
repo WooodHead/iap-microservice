@@ -1,11 +1,9 @@
 import bodyParser from "body-parser";
 import cors from "cors";
-import crypto from "crypto";
 import express from "express";
 import * as http from "http";
 import { AppleVerifyReceiptResponseBodySuccess } from "types-apple-iap";
 
-import { Platform } from "../types";
 import db from "./database";
 import { getProvider } from "./providers";
 
@@ -13,13 +11,18 @@ const port = process.env.PORT || 8080;
 
 const api = express();
 api.use(cors());
-api.use(bodyParser.json({ limit: "5mb" }));
+api.use(bodyParser.json({ limit: "15mb" }));
 
 api.post("/validate", async (req, res) => {
-  const provider = getProvider(req.body.platform);
-  const result = await provider.validate(req.body.token);
-
-  res.send(result);
+  try {
+    const provider = getProvider(req.body.platform);
+    const result = await provider.validate(req.body.token);
+    res.send(result);
+  } catch (e) {
+    console.error(e);
+    res.status(500);
+    res.send(e.message);
+  }
 });
 
 api.post("/purchase", async (req, res) => {
@@ -35,13 +38,13 @@ api.post("/purchase", async (req, res) => {
     const includeNewer = !!req.body.import;
     const syncUserId = !!req.body.syncUserId;
     const token = req.body.token;
-    const platform = req.body.platform as Platform;
 
     const provider = getProvider(req.body.platform);
 
-    const receipt = await provider.validate(token);
-    const purchases = provider.parseReceipt(
-      receipt as AppleVerifyReceiptResponseBodySuccess,
+    const response = await provider.validate(token);
+    const parsedReceipt = provider.parseReceipt(
+      response as AppleVerifyReceiptResponseBodySuccess,
+      token,
       includeNewer
     );
 
@@ -49,7 +52,7 @@ api.post("/purchase", async (req, res) => {
     // if it was, check that it matches what we have on file.
     // If it doesn't match, update all existing purchases with the new userId
     const existingUserId = await db.getUserId(
-      purchases.map((item) => item.orderId)
+      parsedReceipt.purchases.map((item) => item.orderId)
     );
     if (!userId) {
       userId = existingUserId;
@@ -61,16 +64,9 @@ api.post("/purchase", async (req, res) => {
       await db.syncUserId(existingUserId, userId);
     }
 
-    const hash = crypto.createHash("md5").update(token).digest("hex");
-    let dbReceipt = await db.getReceiptByHash(hash);
+    let dbReceipt = await db.getReceiptByHash(parsedReceipt.receipt.hash);
     if (!dbReceipt) {
-      dbReceipt = await db.createReceipt({
-        hash,
-        token,
-        userId,
-        platform,
-        data: receipt,
-      });
+      dbReceipt = await db.createReceipt(parsedReceipt.receipt);
     } else {
       if (userId) {
         dbReceipt.userId = userId;
@@ -80,6 +76,7 @@ api.post("/purchase", async (req, res) => {
 
     // parseReceipt will return purchases sorted desc. Reverse them so we save them
     // in chronological order allowing linked and original purchase links to be established
+    const purchases = parsedReceipt.purchases;
     purchases.reverse();
     let returnPurchase = null;
     for (const purchase of purchases) {
@@ -124,6 +121,52 @@ api.post("/purchase", async (req, res) => {
     }
 
     res.send(returnPurchase);
+  } catch (e) {
+    console.error(e);
+    res.status(500);
+    res.send(e.message);
+  }
+});
+
+api.get("/purchase/:id", async (req, res) => {
+  try {
+    const purchase = await db.getPurchaseById(req.params.id);
+    res.send(purchase);
+  } catch (e) {
+    console.error(e);
+    res.status(500);
+    res.send(e.message);
+  }
+});
+
+api.get("/receipt/:id", async (req, res) => {
+  try {
+    const receipt = await db.getPurchaseById(req.params.id);
+    res.send(receipt);
+  } catch (e) {
+    console.error(e);
+    res.status(500);
+    res.send(e.message);
+  }
+});
+
+api.get("/user/:userId/purchases", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const purchases = await db.getPurchasesByUserId(userId);
+    res.send(purchases);
+  } catch (e) {
+    console.error(e);
+    res.status(500);
+    res.send(e.message);
+  }
+});
+
+api.get("/user/:userId/receipts", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const receipts = await db.getReceiptsByUserId(userId);
+    res.send(receipts);
   } catch (e) {
     console.error(e);
     res.status(500);

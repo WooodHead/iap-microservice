@@ -65,14 +65,15 @@ model Purchase {
 }
 
 model Receipt {
-  id         String   @id @default(cuid())
-  userId     String?  @db.VarChar(255)
-  platform   String   @db.VarChar(7)
-  hash       String   @unique @db.Char(32)
-  token      String   @db.Text
-  data       Json     @db.Json
-  createdAt  DateTime @default(now())
-  modifiedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String?  @db.VarChar(255)
+  platform    String   @db.VarChar(7)
+  hash        String   @unique @db.Char(32)
+  token       String   @db.Text
+  data        Json     @db.Json
+  receiptDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+  modifiedAt  DateTime @updatedAt
 
   purchases Purchase[] @relation("receipt")
 

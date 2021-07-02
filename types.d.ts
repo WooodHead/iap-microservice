@@ -1,3 +1,8 @@
+import {
+  AppleVerifyReceiptResponseBody,
+  AppleVerifyReceiptResponseBodySuccess,
+} from "types-apple-iap";
+
 export type Platform = "android" | "ios";
 
 export type CancellationReason =
@@ -84,5 +89,11 @@ export type Receipt = {
   userId?: string; // Arbitrary ID provided by user
   platform: Platform;
   token: string;
-  data: any;
+  data: AppleVerifyReceiptResponseBody | any;
+  receiptDate: Date;
+};
+
+export type ParsedReceipt = {
+  receipt: Receipt;
+  purchases: Purchase[];
 };

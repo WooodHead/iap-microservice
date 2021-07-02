@@ -53,6 +53,7 @@ CREATE TABLE `receipts` (
     `hash` CHAR(32) NOT NULL,
     `token` TEXT NOT NULL,
     `data` JSON NOT NULL,
+    `receiptDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `modifiedAt` DATETIME(3) NOT NULL,
 

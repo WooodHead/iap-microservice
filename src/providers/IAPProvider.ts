@@ -3,7 +3,7 @@ import {
   AppleVerifyReceiptResponseBodySuccess,
 } from "types-apple-iap";
 
-import { Purchase } from "../../types";
+import { ParsedReceipt } from "../../types";
 
 export interface IAPProvider {
   validate(
@@ -13,6 +13,7 @@ export interface IAPProvider {
 
   parseReceipt(
     receipt: AppleVerifyReceiptResponseBodySuccess,
+    token: string,
     includeNewer: boolean
-  ): Purchase[];
+  ): ParsedReceipt;
 }

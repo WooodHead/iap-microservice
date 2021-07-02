@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import fetch from "node-fetch";
 import {
   AppleInAppPurchaseTransaction,
@@ -11,7 +12,9 @@ import {
 
 import {
   CancellationReason,
+  ParsedReceipt,
   Purchase,
+  Receipt,
   SubscriptionPeriodType,
   SubscriptionState,
   SubscriptionStatus,
@@ -73,9 +76,10 @@ export default class Apple implements IAPProvider {
   }
 
   parseReceipt(
-    receipt: AppleVerifyReceiptResponseBodySuccess,
+    receiptData: AppleVerifyReceiptResponseBodySuccess,
+    token: string,
     includeNewer: boolean
-  ): Purchase[] {
+  ): ParsedReceipt {
     // The receipt contains both receipt.in_app and latest_receipt_info arrays
     // The most recent item in receipt.in_app is the actual transaction that
     // triggered the receipt, but if there are subscriptions associated with
@@ -83,15 +87,24 @@ export default class Apple implements IAPProvider {
     // in here is well.
     // latest_receipt_info will contain the full list of subscription transactions
     // up-to-date at the time the receipt is validated.
+    const hash = crypto.createHash("md5").update(token).digest("hex");
 
-    const isSandbox = this.isSandbox(receipt);
+    const isSandbox = this.isSandbox(receiptData);
     const receiptDate = new Date(
-      parseInt(receipt.receipt.receipt_creation_date_ms)
+      parseInt(receiptData.receipt.receipt_creation_date_ms)
     );
 
+    const receipt: Receipt = {
+      platform: "ios",
+      hash,
+      receiptDate,
+      token,
+      data: receiptData,
+    };
+
     const transactions = this.mergeTransactions(
-      receipt.receipt.in_app,
-      receipt.latest_receipt_info || [],
+      receiptData.receipt.in_app,
+      receiptData.latest_receipt_info || [],
       includeNewer
     );
 
@@ -104,11 +117,14 @@ export default class Apple implements IAPProvider {
         );
       } else {
         purchases.push(
-          this.processSubscriptionTransaction(transaction, receipt)
+          this.processSubscriptionTransaction(transaction, receiptData)
         );
       }
     }
-    return purchases;
+    return {
+      receipt,
+      purchases,
+    };
   }
 
   processPurchaseTransaction(
