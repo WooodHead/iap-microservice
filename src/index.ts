@@ -5,9 +5,12 @@ import * as http from "http";
 import { AppleVerifyReceiptResponseBodySuccess } from "types-apple-iap";
 
 import db from "./database";
+import { getLogger } from "./logging";
 import { getProvider } from "./providers";
 
 const port = process.env.PORT || 8080;
+
+const logger = getLogger("api");
 
 const api = express();
 api.use(cors());
@@ -19,7 +22,7 @@ api.post("/validate", async (req, res) => {
     const result = await provider.validate(req.body.token);
     res.send(result);
   } catch (e) {
-    console.error(e);
+    logger.error(e.message);
     res.status(500);
     res.send(e.message);
   }
@@ -122,7 +125,7 @@ api.post("/purchase", async (req, res) => {
 
     res.send(returnPurchase);
   } catch (e) {
-    console.error(e);
+    logger.error(e.message);
     res.status(500);
     res.send(e.message);
   }
@@ -131,9 +134,13 @@ api.post("/purchase", async (req, res) => {
 api.get("/purchase/:id", async (req, res) => {
   try {
     const purchase = await db.getPurchaseById(req.params.id);
-    res.send(purchase);
+    if (purchase) {
+      res.send(purchase);
+    } else {
+      res.sendStatus(404);
+    }
   } catch (e) {
-    console.error(e);
+    logger.error(e.message);
     res.status(500);
     res.send(e.message);
   }
@@ -142,9 +149,13 @@ api.get("/purchase/:id", async (req, res) => {
 api.get("/receipt/:id", async (req, res) => {
   try {
     const receipt = await db.getPurchaseById(req.params.id);
-    res.send(receipt);
+    if (receipt) {
+      res.send(receipt);
+    } else {
+      res.sendStatus(404);
+    }
   } catch (e) {
-    console.error(e);
+    logger.error(e.message);
     res.status(500);
     res.send(e.message);
   }
@@ -156,7 +167,7 @@ api.get("/user/:userId/purchases", async (req, res) => {
     const purchases = await db.getPurchasesByUserId(userId);
     res.send(purchases);
   } catch (e) {
-    console.error(e);
+    logger.error(e.message);
     res.status(500);
     res.send(e.message);
   }
@@ -168,12 +179,12 @@ api.get("/user/:userId/receipts", async (req, res) => {
     const receipts = await db.getReceiptsByUserId(userId);
     res.send(receipts);
   } catch (e) {
-    console.error(e);
+    logger.error(e.message);
     res.status(500);
     res.send(e.message);
   }
 });
 
 http.createServer(api).listen(port, async () => {
-  console.log("Server started...");
+  logger.info("Server started...");
 });
