@@ -49,6 +49,21 @@ export class MySQL implements Database {
     return purchase as Purchase;
   }
 
+  async getPurchasesByReceiptHash(hash: string): Promise<Purchase[]> {
+    const purchases = await this.prisma.purchase.findMany({
+      where: {
+        receipt: {
+          hash,
+        },
+      },
+      orderBy: {
+        purchaseDate: "desc",
+      },
+    });
+
+    return purchases as Purchase[];
+  }
+
   async updatePurchase(id: string, purchase: Purchase): Promise<Purchase> {
     return (await this.prisma.purchase.update({
       where: {

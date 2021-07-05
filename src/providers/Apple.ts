@@ -24,27 +24,18 @@ import { IAPProvider } from "./IAPProvider";
 const ENDPOINT_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt";
 const ENDPOINT_PRODUCTION = "https://buy.itunes.apple.com/verifyReceipt";
 
-export default class Apple implements IAPProvider {
+export default class Apple extends IAPProvider {
   sharedSecret = "";
 
   constructor(sharedSecret: string) {
+    super();
     this.sharedSecret = sharedSecret;
   }
 
-  /**
-   * Validate an Apple IAP receipt
-   * Attempts to validate against Apple Prod environment first,
-   * but will also attempt Sandbox if directed to by the prod environment
-   *
-   * @param token Base64 encoded receipt from StoreKit
-   * @param sandbox Boolean (optional). Should IAP Sandbox environment be used?
-   * @return Raw Receipt Response from Apple if the receipt is valid
-   * @throws AppleError if receipt or shared password are invalid. HTTP Error if one occurred.
-   */
-  async validate(
+  async validateUsingEnvironment(
     token: string,
-    sandbox?: boolean
-  ): Promise<AppleVerifyReceiptResponseBodySuccess> {
+    sandbox: boolean
+  ): Promise<AppleVerifyReceiptResponseBody> {
     const content: any = {
       "receipt-data": token,
       password: this.sharedSecret,
@@ -64,20 +55,43 @@ export default class Apple implements IAPProvider {
       receiptResponse.status ===
         AppleVerifyReceiptSuccessfulStatus.VALID_BUT_SUBSCRIPTION_EXPIRED
     ) {
-      return receiptResponse as AppleVerifyReceiptResponseBodySuccess;
+      return receiptResponse;
     } else if (
       receiptResponse.status ===
       AppleVerifyReceiptErrorCode.USE_TEST_ENVIRONMENT
     ) {
-      return this.validate(token, true);
+      return this.validateUsingEnvironment(token, true);
     } else {
       throw Apple.handleError(receiptResponse.status);
     }
   }
 
+  /**
+   * Validate an Apple IAP receipt
+   * Attempts to validate against Apple Prod environment first,
+   * but will also attempt Sandbox if directed to by the prod environment
+   *
+   * @param token Base64 encoded receipt from StoreKit
+   * @param sku Product SKU
+   * @param isSubscription not used
+   * @return Receipt Object from Apple if the receipt is valid
+   * @throws AppleError if receipt or shared password are invalid. HTTP Error if one occurred.
+   */
+  async validate(
+    token: string,
+    sku: string,
+    isSubscription?: boolean
+  ): Promise<AppleVerifyReceiptResponseBodySuccess> {
+    return (await this.validateUsingEnvironment(
+      token,
+      false
+    )) as AppleVerifyReceiptResponseBodySuccess;
+  }
+
   parseReceipt(
     receiptData: AppleVerifyReceiptResponseBodySuccess,
     token: string,
+    sku: string,
     includeNewer: boolean
   ): ParsedReceipt {
     // The receipt contains both receipt.in_app and latest_receipt_info arrays
@@ -87,7 +101,6 @@ export default class Apple implements IAPProvider {
     // in here is well.
     // latest_receipt_info will contain the full list of subscription transactions
     // up-to-date at the time the receipt is validated.
-    const hash = crypto.createHash("md5").update(token).digest("hex");
 
     const isSandbox = this.isSandbox(receiptData);
     const receiptDate = new Date(
@@ -96,7 +109,7 @@ export default class Apple implements IAPProvider {
 
     const receipt: Receipt = {
       platform: "ios",
-      hash,
+      hash: this.getHash(token),
       receiptDate,
       token,
       data: receiptData,
@@ -255,7 +268,7 @@ export default class Apple implements IAPProvider {
     );
 
     purchase.subscriptionState = this.getSubscriptionState(purchase);
-    purchase.subscriptionStatus = Apple.getSubscriptionStatus(purchase);
+    purchase.subscriptionStatus = this.getSubscriptionStatus(purchase);
 
     return purchase;
   }
@@ -277,16 +290,6 @@ export default class Apple implements IAPProvider {
     return otherTransactions.find((item) => {
       return item.transaction_id === transaction.original_transaction_id;
     });
-  }
-
-  getSubscriptionPeriodType(purchase: Purchase): SubscriptionPeriodType {
-    if (purchase.isTrial) {
-      return "trial";
-    } else if (purchase.isIntroOfferPeriod) {
-      return "intro";
-    } else {
-      return "normal";
-    }
   }
 
   // See https://developer.apple.com/documentation/appstorereceipts/expiration_intent
@@ -327,74 +330,6 @@ export default class Apple implements IAPProvider {
     }
 
     return cancellationReason;
-  }
-
-  getSubscriptionState(purchase: Purchase): SubscriptionState {
-    if (purchase.isSubscriptionActive) {
-      return "active";
-    } else if (purchase.isSubscriptionGracePeriod) {
-      return "grace_period";
-    } else if (purchase.isSubscriptionRetryPeriod) {
-      return "retry_period";
-    } else {
-      return "expired";
-    }
-  }
-
-  static getSubscriptionStatus(purchase: Purchase): SubscriptionStatus {
-    if (!purchase.isSubscription) {
-      return null;
-    }
-
-    let status: SubscriptionStatus = "unknown";
-
-    if (
-      purchase.isRefunded &&
-      purchase.refundReason !== "subscription_replace"
-    ) {
-      status = "refunded";
-    } else if (purchase.subscriptionState === "paused") {
-      status = "paused";
-    } else if (
-      purchase.subscriptionState === "grace_period" ||
-      purchase.isSubscriptionGracePeriod
-    ) {
-      // Grace period is shorter than retry period so it goes first
-      status = "grace_period";
-    } else if (
-      purchase.subscriptionState === "retry_period" ||
-      purchase.isSubscriptionRetryPeriod
-    ) {
-      status = "retry_period";
-    } else if (
-      purchase.subscriptionState === "expired" ||
-      (!purchase.isSubscriptionActive && !purchase.isSubscriptionRenewable)
-    ) {
-      status = "expired";
-    } else if (
-      // Check for cancelled trial before normal sub - we immediately expired cancelled trials.
-      purchase.subscriptionPeriodType === "trial"
-    ) {
-      if (!purchase.isSubscriptionRenewable) {
-        status = "expired";
-      } else {
-        status = "trial";
-      }
-    } else if (
-      purchase.isSubscriptionActive &&
-      !purchase.isSubscriptionRenewable
-    ) {
-      // Has cancelled before expiration date
-      if (new Date() < purchase.expirationDate) {
-        status = "cancelled";
-      } else {
-        status = "expired";
-      }
-    } else if (purchase.subscriptionState === "active") {
-      status = "active";
-    }
-
-    return status;
   }
 
   /**

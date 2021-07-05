@@ -19,9 +19,15 @@ api.use(bodyParser.json({ limit: "15mb" }));
 api.post("/validate", async (req, res) => {
   try {
     const provider = getProvider(req.body.platform);
-    const result = await provider.validate(req.body.token);
+    const isSubscription = !!req.body.is_subscription;
+    const result = await provider.validate(
+      req.body.token,
+      req.body.sku,
+      isSubscription
+    );
     res.send(result);
   } catch (e) {
+    console.log(e);
     logger.error(e.message);
     res.status(500);
     res.send(e.message);
@@ -37,17 +43,21 @@ api.post("/purchase", async (req, res) => {
     //  If not supplied, will attempt to find user id from previous purchase
     // syncUserId - All related purchases will be changed to this user id. Useful if userId changes for some reason
 
-    let userId = req.body.userId || null;
+    let userId = req.body.user_id || null;
+    let sku = req.body.sku || "";
     const includeNewer = !!req.body.import;
-    const syncUserId = !!req.body.syncUserId;
+    const syncUserId = !!req.body.sync_user;
     const token = req.body.token;
+    const isSubscription = !!req.body.is_subscription;
+    const platform = req.body.platform;
 
-    const provider = getProvider(req.body.platform);
+    const provider = getProvider(platform);
 
-    const response = await provider.validate(token);
+    const response = await provider.validate(token, sku, isSubscription);
     const parsedReceipt = provider.parseReceipt(
       response as AppleVerifyReceiptResponseBodySuccess,
       token,
+      sku,
       includeNewer
     );
 
@@ -67,6 +77,7 @@ api.post("/purchase", async (req, res) => {
       await db.syncUserId(existingUserId, userId);
     }
 
+    parsedReceipt.receipt.userId = userId;
     let dbReceipt = await db.getReceiptByHash(parsedReceipt.receipt.hash);
     if (!dbReceipt) {
       dbReceipt = await db.createReceipt(parsedReceipt.receipt);
@@ -86,6 +97,19 @@ api.post("/purchase", async (req, res) => {
       purchase.receiptId = dbReceipt.id;
       if (userId) {
         purchase.userId = userId;
+      }
+
+      if (
+        platform === "android" &&
+        purchase.isSubscription &&
+        purchase.linkedToken
+      ) {
+        const linkedHash = provider.getHash(purchase.linkedToken);
+        const linkedPurchases = await db.getPurchasesByReceiptHash(linkedHash);
+        if (linkedPurchases.length) {
+          purchase.linkedOrderId = linkedPurchases[0].orderId;
+          purchase.originalOrderId = linkedPurchases[0].originalOrderId;
+        }
       }
 
       let dbPurchase = await db.getPurchaseByOrderId(purchase.orderId);
@@ -115,7 +139,7 @@ api.post("/purchase", async (req, res) => {
         // the one we have on file
         // This prevents overwriting historic subscription statuses and token values
         // for old purchases
-        if (dbPurchase.receiptDate > purchase.receiptDate) {
+        if (dbPurchase.receiptDate >= purchase.receiptDate) {
           dbPurchase = await db.updatePurchase(dbPurchase.id, purchase);
         }
       }

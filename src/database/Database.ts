@@ -3,6 +3,7 @@ import { Purchase, Receipt } from "../../types";
 export interface Database {
   getPurchaseById(id: string): Promise<Purchase>;
   getPurchaseByOrderId(orderId: string): Promise<Purchase>;
+  getPurchasesByReceiptHash(hash: string): Promise<Purchase[]>;
   createPurchase(purchase: Purchase): Promise<Purchase>;
   updatePurchase(id: string, purchase: Purchase): Promise<Purchase>;
   getUserId(orderIds: string[]): Promise<string | null>;

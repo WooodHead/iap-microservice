@@ -1,7 +1,5 @@
-import {
-  AppleVerifyReceiptResponseBody,
-  AppleVerifyReceiptResponseBodySuccess,
-} from "types-apple-iap";
+import { AppleVerifyReceiptResponseBody } from "types-apple-iap";
+import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
 
 export type Platform = "android" | "ios";
 
@@ -89,7 +87,11 @@ export type Receipt = {
   userId?: string; // Arbitrary ID provided by user
   platform: Platform;
   token: string;
-  data: AppleVerifyReceiptResponseBody | any;
+  data:
+    | AppleVerifyReceiptResponseBody
+    | androidpublisher_v3.Schema$ProductPurchase
+    | androidpublisher_v3.Schema$SubscriptionPurchase
+    | any;
   receiptDate: Date;
 };
 

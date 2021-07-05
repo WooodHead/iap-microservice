@@ -11,6 +11,10 @@ export class DummyDB implements Database {
     return Promise.resolve(null);
   }
 
+  getPurchasesByReceiptHash(hash: string): Promise<Purchase[]> {
+    return Promise.resolve([]);
+  }
+
   updatePurchase(id: string, purchase: Purchase): Promise<Purchase> {
     return Promise.resolve(purchase);
   }
