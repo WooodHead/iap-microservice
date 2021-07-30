@@ -57,10 +57,5 @@
     "googleapis": "^80.1.0",
     "node-fetch": "^2.6.1",
     "pino": "^6.11.3"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint"
-    }
   }
 }
