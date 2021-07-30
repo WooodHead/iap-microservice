@@ -44,7 +44,7 @@ api.post("/purchase", async (req, res) => {
     // syncUserId - All related purchases will be changed to this user id. Useful if userId changes for some reason
 
     let userId = req.body.user_id || null;
-    let sku = req.body.sku || "";
+    const sku = req.body.sku || "";
     const includeNewer = !!req.body.import;
     const syncUserId = !!req.body.sync_user;
     const token = req.body.token;

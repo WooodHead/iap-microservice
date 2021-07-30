@@ -1,7 +1,7 @@
 import { Platform } from "../../types";
 import Apple from "./Apple";
-import { IAPProvider } from "./IAPProvider";
 import { Google } from "./Google";
+import { IAPProvider } from "./IAPProvider";
 
 export function getProvider(platform: Platform): IAPProvider {
   if (platform === "ios") {
