@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-import { Purchase, Receipt } from "../types";
+import { Platform, Product, Purchase, Receipt } from "../types";
 import { Database } from "./Database";
 
 export class MySQL implements Database {
@@ -151,5 +151,36 @@ export class MySQL implements Database {
       },
       data: receipt,
     })) as Receipt;
+  }
+
+  async createProduct(product: Product): Promise<Product> {
+    return (await this.prisma.product.create({
+      data: product,
+    })) as Product;
+  }
+
+  async getProductBySku(sku: string, platform: Platform): Promise<Product> {
+    if (platform === "ios") {
+      return (await this.prisma.product.findUnique({
+        where: {
+          skuAndroid: sku,
+        },
+      })) as Product;
+    } else {
+      return (await this.prisma.product.findUnique({
+        where: {
+          skuIOS: sku,
+        },
+      })) as Product;
+    }
+  }
+
+  async updateProduct(product: Product): Promise<Product> {
+    return (await this.prisma.product.update({
+      where: {
+        id: product.id,
+      },
+      data: product,
+    })) as Product;
   }
 }

@@ -136,10 +136,15 @@ export default class Apple extends IAPProvider {
     isSandbox: boolean
   ): Purchase {
     const purchase: Purchase = {
+      productId: null, // @TODO
       receiptId: null,
       isRefunded: !!transaction.cancellation_date_ms,
       isSandbox,
       receiptDate,
+      price: 0, // @TODO
+      currency: "", // @TODO
+      convertedPrice: 0, // @TODO
+      convertedCurrency: "", // @TODO
       isSubscription: !!transaction.expires_date,
       orderId: transaction.transaction_id,
       platform: "ios",

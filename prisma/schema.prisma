@@ -13,25 +13,31 @@ generator client {
 model Purchase {
   id                 String    @id @default(cuid())
   receiptId          String
-  receipt            Receipt?  @relation(fields: [receiptId], references: [id], name: "receipt")
+  receipt            Receipt   @relation(fields: [receiptId], references: [id], name: "receipt")
+  productId          String?
+  product            Product?  @relation(fields: [productId], references: [id], name: "product")
   originalPurchaseId String?
   originalPurchase   Purchase? @relation(fields: [originalPurchaseId], references: [id], name: "originalPurchase")
   linkedPurchaseId   String?
   linkedPurchase     Purchase? @relation(fields: [linkedPurchaseId], references: [id], name: "linkedPurchase")
 
-  userId          String?   @db.VarChar(255)
-  orderId         String?   @unique @db.VarChar(255)
-  originalOrderId String?   @db.VarChar(255)
-  linkedOrderId   String?   @db.VarChar(255)
-  purchaseDate    DateTime  @default(now())
-  receiptDate     DateTime  @default(now())
-  refundDate      DateTime?
-  refundReason    String?   @db.VarChar(20)
-  isRefunded      Boolean   @default(false)
-  isSandbox       Boolean   @default(false)
-  productSku      String    @db.VarChar(255)
-  quantity        Int       @default(0)
-  platform        String    @db.VarChar(7)
+  userId            String?   @db.VarChar(255)
+  orderId           String?   @unique @db.VarChar(255)
+  originalOrderId   String?   @db.VarChar(255)
+  linkedOrderId     String?   @db.VarChar(255)
+  purchaseDate      DateTime  @default(now())
+  price             Int       @default(0)
+  currency          String    @db.VarChar(3)
+  convertedPrice    Int       @default(0)
+  convertedCurrency String    @db.VarChar(3)
+  receiptDate       DateTime  @default(now())
+  refundDate        DateTime?
+  refundReason      String?   @db.VarChar(20)
+  isRefunded        Boolean   @default(false)
+  isSandbox         Boolean   @default(false)
+  productSku        String    @db.VarChar(255)
+  quantity          Int       @default(0)
+  platform          String    @db.VarChar(7)
 
   isTrial                   Boolean?
   isTrialConversion         Boolean?
@@ -82,4 +88,20 @@ model Receipt {
   @@index(fields: [userId])
   @@index(fields: [hash])
   @@map("receipts")
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  skuAndroid String?  @unique @db.VarChar(255)
+  skuIOS     String?  @unique @db.VarChar(255)
+  price      Int      @default(0)
+  currency   String   @db.VarChar(3)
+  createdAt  DateTime @default(now())
+  modifiedAt DateTime @updatedAt
+
+  purchases Purchase[] @relation("product")
+
+  @@index(fields: [skuAndroid])
+  @@index(fields: [skuIOS])
+  @@map("products")
 }

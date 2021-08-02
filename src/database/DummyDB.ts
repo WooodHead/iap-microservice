@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Purchase, Receipt } from "../types";
+import { Platform, Product, Purchase, Receipt } from "../types";
 import { Database } from "./Database";
 
 export class DummyDB implements Database {
@@ -53,5 +53,17 @@ export class DummyDB implements Database {
 
   getReceiptsByUserId(userId: string): Promise<Receipt[]> {
     return Promise.resolve([]);
+  }
+
+  createProduct(product: Product): Promise<Product> {
+    return Promise.resolve(product);
+  }
+
+  getProductBySku(sku: string, platform: Platform): Promise<Product> {
+    return Promise.resolve(null);
+  }
+
+  updateProduct(product: Product): Promise<Product> {
+    return Promise.resolve(product);
   }
 }

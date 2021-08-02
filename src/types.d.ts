@@ -35,9 +35,10 @@ export type SubscriptionStatus =
 
 export type Purchase = {
   id?: string;
+  receiptId: string;
+  productId?: string;
   linkedPurchaseId?: string;
   originalPurchaseId?: string;
-  receiptId: string;
 
   userId?: string; // Arbitrary ID provided by user
   // Generic Order Properties
@@ -48,6 +49,10 @@ export type Purchase = {
   orderId?: string;
   productSku: string;
   purchaseDate: Date;
+  price: number;
+  currency: string;
+  convertedPrice: number;
+  convertedCurrency: string;
   receiptDate: Date;
   refundDate: Date | null;
   refundReason: "issue" | "subscription_replace" | "other" | null;
@@ -95,4 +100,12 @@ export type Receipt = {
 export type ParsedReceipt = {
   receipt: Receipt;
   purchases: Purchase[];
+};
+
+export type Product = {
+  id?: string;
+  skuAndroid?: string;
+  skuIOS?: string;
+  price: number;
+  currency: string;
 };

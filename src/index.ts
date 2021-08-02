@@ -219,8 +219,7 @@ api.get("/cron", async (req, res) => {
   // Testing out voided purchases
   const provider = getProvider("android") as Google;
   const result = await provider.getVoidedPurchases();
-  console.log(result);
-  res.send("OK");
+  res.send(result);
 });
 
 http.createServer(api).listen(port, async () => {

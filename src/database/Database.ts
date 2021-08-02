@@ -1,4 +1,4 @@
-import { Purchase, Receipt } from "../types";
+import { Platform, Product, Purchase, Receipt } from "../types";
 
 export interface Database {
   getPurchaseById(id: string): Promise<Purchase>;
@@ -15,4 +15,8 @@ export interface Database {
   createReceipt(receipt: Receipt): Promise<Receipt>;
   updateReceipt(receipt: Receipt): Promise<Receipt>;
   getReceiptsByUserId(userId: string): Promise<Receipt[]>;
+
+  getProductBySku(sku: string, platform: Platform): Promise<Product>;
+  createProduct(product: Product): Promise<Product>;
+  updateProduct(product: Product): Promise<Product>;
 }

@@ -137,8 +137,13 @@ export class Google extends IAPProvider {
   ): Purchase {
     const purchaseDate = new Date(parseInt(transaction.purchaseTimeMillis));
     return {
+      productId: null, // @TODO
       receiptId: null,
       isSandbox: transaction.purchaseType && transaction.purchaseType === 0,
+      price: 0, // @TODO
+      currency: "", // @TODO
+      convertedPrice: 0, // @TODO
+      convertedCurrency: "", // @TODO
       receiptDate: purchaseDate,
       isSubscription: false,
       orderId: transaction.orderId,
@@ -178,10 +183,15 @@ export class Google extends IAPProvider {
     const isSubscriptionActive = new Date() < expirationDate;
 
     const purchase: Purchase = {
+      productId: null, // @TODO
       receiptId: null,
       isSandbox:
         transaction.purchaseType !== undefined &&
         transaction.purchaseType === 0,
+      price: 0, // @TODO
+      currency: "", // @TODO
+      convertedPrice: 0, // @TODO
+      convertedCurrency: "", // @TODO
       receiptDate: purchaseDate,
       isSubscription: true,
       orderId: transaction.orderId,
