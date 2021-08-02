@@ -7,6 +7,7 @@ import { AppleVerifyReceiptResponseBodySuccess } from "types-apple-iap";
 import db from "./database";
 import { getLogger } from "./logging";
 import { getProvider } from "./providers";
+import { Google } from "./providers/Google";
 
 const port = process.env.PORT || 8080;
 
@@ -19,17 +20,14 @@ api.use(bodyParser.json({ limit: "15mb" }));
 api.post("/validate", async (req, res) => {
   try {
     const provider = getProvider(req.body.platform);
-    const isSubscription = !!req.body.is_subscription;
-    const result = await provider.validate(
-      req.body.token,
-      req.body.sku,
-      isSubscription
-    );
+    const result = await provider.validate(req.body.token, req.body.sku);
     res.send(result);
   } catch (e) {
     logger.error(e.message);
     res.status(500);
-    res.send(e.message);
+    res.send({
+      error: e.message,
+    });
   }
 });
 
@@ -47,12 +45,11 @@ api.post("/purchase", async (req, res) => {
     const includeNewer = !!req.body.import;
     const syncUserId = !!req.body.sync_user;
     const token = req.body.token;
-    const isSubscription = !!req.body.is_subscription;
     const platform = req.body.platform;
 
     const provider = getProvider(platform);
 
-    const response = await provider.validate(token, sku, isSubscription);
+    const response = await provider.validate(token, sku);
     const parsedReceipt = provider.parseReceipt(
       response as AppleVerifyReceiptResponseBodySuccess,
       token,
@@ -150,7 +147,9 @@ api.post("/purchase", async (req, res) => {
   } catch (e) {
     logger.error(e.message);
     res.status(500);
-    res.send(e.message);
+    res.send({
+      error: e.message,
+    });
   }
 });
 
@@ -165,7 +164,9 @@ api.get("/purchase/:id", async (req, res) => {
   } catch (e) {
     logger.error(e.message);
     res.status(500);
-    res.send(e.message);
+    res.send({
+      error: e.message,
+    });
   }
 });
 
@@ -180,7 +181,9 @@ api.get("/receipt/:id", async (req, res) => {
   } catch (e) {
     logger.error(e.message);
     res.status(500);
-    res.send(e.message);
+    res.send({
+      error: e.message,
+    });
   }
 });
 
@@ -192,7 +195,9 @@ api.get("/user/:userId/purchases", async (req, res) => {
   } catch (e) {
     logger.error(e.message);
     res.status(500);
-    res.send(e.message);
+    res.send({
+      error: e.message,
+    });
   }
 });
 
@@ -204,8 +209,18 @@ api.get("/user/:userId/receipts", async (req, res) => {
   } catch (e) {
     logger.error(e.message);
     res.status(500);
-    res.send(e.message);
+    res.send({
+      error: e.message,
+    });
   }
+});
+
+api.get("/cron", async (req, res) => {
+  // Testing out voided purchases
+  const provider = getProvider("android") as Google;
+  const result = await provider.getVoidedPurchases();
+  console.log(result);
+  res.send("OK");
 });
 
 http.createServer(api).listen(port, async () => {

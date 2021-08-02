@@ -63,17 +63,14 @@ export default class Apple extends IAPProvider {
    * but will also attempt Sandbox if directed to by the prod environment
    *
    * @param token Base64 encoded receipt from StoreKit
-   * @param sku Product SKU - not used
-   * @param isSubscription not used
+   * @param sku Product SKU - (not used/Android only)
    * @return Receipt Object from Apple if the receipt is valid
    * @throws AppleError if receipt or shared password are invalid. HTTP Error if one occurred.
    */
   async validate(
     token: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    sku: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    isSubscription?: boolean
+    sku: string
   ): Promise<AppleVerifyReceiptResponseBodySuccess> {
     return (await this.validateUsingEnvironment(
       token,
@@ -223,6 +220,9 @@ export default class Apple extends IAPProvider {
     purchase.isSubscriptionRetryPeriod =
       renewalInfo?.is_in_billing_retry_period === "1" || false;
     purchase.isSubscriptionGracePeriod = false;
+    purchase.isSubscriptionPaused = false; // Not supported by Apple
+    purchase.subscriptionRenewalProductSku =
+      renewalInfo?.auto_renew_product_id || null;
 
     if (originalOrder.subscription_group_identifier) {
       purchase.subscriptionGroup = originalOrder.subscription_group_identifier;

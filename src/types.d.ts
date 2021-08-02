@@ -60,6 +60,7 @@ export type Purchase = {
   isSubscriptionRenewable?: boolean;
   isSubscriptionRetryPeriod?: boolean;
   isSubscriptionGracePeriod?: boolean;
+  isSubscriptionPaused?: boolean;
   isTrialConversion?: boolean;
 
   // Additional Subscription Info
@@ -69,16 +70,12 @@ export type Purchase = {
   subscriptionState?: SubscriptionState;
   subscriptionStatus?: SubscriptionStatus;
   subscriptionGroup?: string;
+  subscriptionRenewalProductSku?: string;
   cancellationReason?: CancellationReason;
   expirationDate?: Date;
   gracePeriodEndDate?: Date;
   token?: string;
   linkedToken?: string; // Android only
-
-  /*
-  // Are these needed?
-  subscriptionRenewalProductSku?: string;
-   */
 };
 
 export type Receipt = {

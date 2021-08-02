@@ -18,9 +18,7 @@ export class IAPProvider {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     token: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    sku: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    isSubscription?: boolean
+    sku: string
   ): Promise<
     | AppleVerifyReceiptResponseBody
     | androidpublisher_v3.Schema$ProductPurchase

@@ -62,19 +62,43 @@ export class Google extends IAPProvider {
     return response.data;
   }
 
+  async getVoidedPurchases(): Promise<androidpublisher_v3.Schema$VoidedPurchasesListResponse> {
+    // @TODO: Test if we can use this to find refund info on purchases/subscriptions
+    const client = await this.getClient();
+    const response = await client
+      .androidpublisher({
+        version: "v3",
+      })
+      .purchases.voidedpurchases.list({
+        packageName: process.env.ANDROID_PACKAGE_NAME,
+        type: 1,
+      });
+    return response.data;
+  }
+
   async validate(
     token: string,
-    sku: string,
-    isSubscription?: boolean
+    sku: string
   ): Promise<
     | androidpublisher_v3.Schema$ProductPurchase
     | androidpublisher_v3.Schema$SubscriptionPurchase
   > {
-    if (isSubscription) {
-      return this.validateSubscription(token, sku);
-    } else {
-      return this.validatePurchase(token, sku);
+    // First try as a purchase, if that fails try as a subscription
+    let purchase;
+    try {
+      purchase = await this.validatePurchase(token, sku);
+    } catch (e) {
+      if (
+        e.code === 400 &&
+        e.errors.length &&
+        e.errors[0].reason === "invalid"
+      ) {
+        purchase = await this.validateSubscription(token, sku);
+      } else {
+        throw e;
+      }
     }
+    return purchase;
   }
 
   parseReceipt(
@@ -122,6 +146,9 @@ export class Google extends IAPProvider {
       productSku: sku,
       purchaseDate,
       quantity: transaction.quantity,
+
+      // @TODO: Is this info available via https://developer.android.com/google/play/billing/rtdn-reference#one-time?
+      // or https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.voidedpurchases/list
       isRefunded: false, // #TODO
       refundDate: null, // @TODO
       refundReason: null, // @TODO
@@ -135,13 +162,16 @@ export class Google extends IAPProvider {
     const purchaseDate = new Date(parseInt(transaction.startTimeMillis));
 
     // Try to re-create the order ID history if the order has '..' in it
-    // This appears to only be useful in Sandbox
     const orderIdSplit = transaction.orderId.split("..");
     const originalOrderId = orderIdSplit[0];
     let linkedOrderId = null;
     if (orderIdSplit.length > 1) {
-      const orderNum = parseInt(orderIdSplit[1]) - 1;
-      linkedOrderId = `${originalOrderId}..${orderNum}`;
+      const orderNum = parseInt(orderIdSplit[1]);
+      if (orderNum === 0) {
+        linkedOrderId = originalOrderId;
+      } else {
+        linkedOrderId = `${originalOrderId}..${orderNum - 1}`;
+      }
     }
 
     const expirationDate = new Date(parseInt(transaction.expiryTimeMillis));
@@ -149,7 +179,9 @@ export class Google extends IAPProvider {
 
     const purchase: Purchase = {
       receiptId: null,
-      isSandbox: transaction.purchaseType && transaction.purchaseType === 0,
+      isSandbox:
+        transaction.purchaseType !== undefined &&
+        transaction.purchaseType === 0,
       receiptDate: purchaseDate,
       isSubscription: true,
       orderId: transaction.orderId,
@@ -157,6 +189,11 @@ export class Google extends IAPProvider {
       productSku: sku,
       purchaseDate,
       quantity: 1,
+
+      // @TODO
+      // Refunds are sent via real-time notifications using 'SUBSCRIPTION_REVOKED' notification
+      // See https://developer.android.com/google/play/billing/subscriptions#revoke
+      // Perhaps also via https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.voidedpurchases/list
       isRefunded: false, // #TODO
       refundDate: null, // @TODO
       refundReason: null, // @TODO
@@ -168,7 +205,10 @@ export class Google extends IAPProvider {
       isSubscriptionRetryPeriod:
         isSubscriptionActive && transaction.autoRenewing,
       isSubscriptionGracePeriod: false,
-      isTrialConversion: false, // @TODO
+      isSubscriptionPaused: false,
+
+      // @TODO - Will need to look up previous transactions in the database to compare
+      isTrialConversion: false,
 
       // Additional Subscription Info
       originalOrderId,
@@ -177,9 +217,10 @@ export class Google extends IAPProvider {
       subscriptionState: null,
       subscriptionStatus: null,
       subscriptionGroup: null,
+      subscriptionRenewalProductSku: null, // @TODO: Probably found via real-time notifications(?)
       cancellationReason: null,
       expirationDate,
-      gracePeriodEndDate: null, // @TODO
+      gracePeriodEndDate: null,
       linkedToken: transaction.linkedPurchaseToken,
     };
 
@@ -196,6 +237,11 @@ export class Google extends IAPProvider {
     purchase.isSubscriptionGracePeriod =
       transaction.paymentState == 0 && // payment hasn't been received
       purchase.isSubscriptionActive && // and the subscription hasn't expired
+      purchase.isSubscriptionRenewable; // and it's renewing
+
+    purchase.isSubscriptionPaused =
+      transaction.paymentState == 1 && // payment hast been received
+      !purchase.isSubscriptionActive && // and the subscription has expired
       purchase.isSubscriptionRenewable; // and it's renewing
 
     if (purchase.isSubscriptionGracePeriod) {
