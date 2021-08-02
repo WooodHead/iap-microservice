@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Purchase, Receipt } from "../../types";
+import { Purchase, Receipt } from "../types";
 import { Database } from "./Database";
 
 export class DummyDB implements Database {

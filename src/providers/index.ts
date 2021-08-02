@@ -1,4 +1,4 @@
-import { Platform } from "../../types";
+import { Platform } from "../types";
 import Apple from "./Apple";
 import { Google } from "./Google";
 import { IAPProvider } from "./IAPProvider";

@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
 import { AppleInAppPurchaseTransaction } from "types-apple-iap";
 
+import db from "../database";
 import {
   CancellationReason,
   ParsedReceipt,
@@ -10,8 +11,7 @@ import {
   SubscriptionPeriodType,
   SubscriptionState,
   SubscriptionStatus,
-} from "../../types";
-import db from "../database";
+} from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 export class Google extends IAPProvider {

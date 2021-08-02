@@ -18,7 +18,7 @@ import {
   SubscriptionPeriodType,
   SubscriptionState,
   SubscriptionStatus,
-} from "../../types";
+} from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 const ENDPOINT_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt";

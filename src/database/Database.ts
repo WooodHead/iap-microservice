@@ -1,4 +1,4 @@
-import { Purchase, Receipt } from "../../types";
+import { Purchase, Receipt } from "../types";
 
 export interface Database {
   getPurchaseById(id: string): Promise<Purchase>;

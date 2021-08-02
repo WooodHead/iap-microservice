@@ -1,6 +1,6 @@
 import each from "jest-each";
 
-import { Purchase } from "../../types";
+import { Purchase } from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 describe("IAPProvider Tests", () => {

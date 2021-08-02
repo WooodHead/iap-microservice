@@ -1,5 +1,5 @@
-import { AppleVerifyReceiptResponseBody } from "types-apple-iap";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
+import { AppleVerifyReceiptResponseBody } from "types-apple-iap";
 
 export type Platform = "android" | "ios";
 

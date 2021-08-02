@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-import { Purchase, Receipt } from "../../types";
+import { Purchase, Receipt } from "../types";
 import { Database } from "./Database";
 
 export class MySQL implements Database {

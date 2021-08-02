@@ -11,7 +11,7 @@ import {
   SubscriptionPeriodType,
   SubscriptionState,
   SubscriptionStatus,
-} from "../../types";
+} from "../types";
 
 export class IAPProvider {
   validate(
