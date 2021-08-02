@@ -27,7 +27,6 @@ api.post("/validate", async (req, res) => {
     );
     res.send(result);
   } catch (e) {
-    console.log(e);
     logger.error(e.message);
     res.status(500);
     res.send(e.message);
@@ -172,7 +171,7 @@ api.get("/purchase/:id", async (req, res) => {
 
 api.get("/receipt/:id", async (req, res) => {
   try {
-    const receipt = await db.getPurchaseById(req.params.id);
+    const receipt = await db.getReceiptById(req.params.id);
     if (receipt) {
       res.send(receipt);
     } else {

@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import fetch from "node-fetch";
 import {
   AppleInAppPurchaseTransaction,
@@ -10,15 +9,7 @@ import {
   AppleVerifyReceiptSuccessfulStatus,
 } from "types-apple-iap";
 
-import {
-  CancellationReason,
-  ParsedReceipt,
-  Purchase,
-  Receipt,
-  SubscriptionPeriodType,
-  SubscriptionState,
-  SubscriptionStatus,
-} from "../types";
+import { CancellationReason, ParsedReceipt, Purchase, Receipt } from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 const ENDPOINT_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt";
@@ -72,14 +63,16 @@ export default class Apple extends IAPProvider {
    * but will also attempt Sandbox if directed to by the prod environment
    *
    * @param token Base64 encoded receipt from StoreKit
-   * @param sku Product SKU
+   * @param sku Product SKU - not used
    * @param isSubscription not used
    * @return Receipt Object from Apple if the receipt is valid
    * @throws AppleError if receipt or shared password are invalid. HTTP Error if one occurred.
    */
   async validate(
     token: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sku: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     isSubscription?: boolean
   ): Promise<AppleVerifyReceiptResponseBodySuccess> {
     return (await this.validateUsingEnvironment(

@@ -15,8 +15,11 @@ import {
 
 export class IAPProvider {
   validate(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     token: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sku: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     isSubscription?: boolean
   ): Promise<
     | AppleVerifyReceiptResponseBody
@@ -27,12 +30,16 @@ export class IAPProvider {
   }
 
   parseReceipt(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     receipt:
       | AppleVerifyReceiptResponseBodySuccess
       | androidpublisher_v3.Schema$ProductPurchase
       | androidpublisher_v3.Schema$SubscriptionPurchase,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     token: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sku: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     includeNewer: boolean
   ): ParsedReceipt {
     throw Error("Not implemented!");
@@ -116,7 +123,7 @@ export class IAPProvider {
     return status;
   }
 
-  getHash(token: string) {
+  getHash(token: string): string {
     return crypto.createHash("md5").update(token).digest("hex");
   }
 }

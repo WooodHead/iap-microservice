@@ -1,32 +1,24 @@
-import { google } from "googleapis";
+import { google, GoogleApis } from "googleapis";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
-import { AppleInAppPurchaseTransaction } from "types-apple-iap";
 
-import db from "../database";
-import {
-  CancellationReason,
-  ParsedReceipt,
-  Purchase,
-  Receipt,
-  SubscriptionPeriodType,
-  SubscriptionState,
-  SubscriptionStatus,
-} from "../types";
+import { ParsedReceipt, Purchase, Receipt } from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 export class Google extends IAPProvider {
-  constructor() {
+  clientEmail = "";
+  privateKey = "";
+
+  constructor(clientEmail: string, privateKey: string) {
     super();
+    this.clientEmail = clientEmail;
+    this.privateKey = privateKey;
   }
 
-  async getClient() {
+  async getClient(): Promise<GoogleApis> {
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(
-          /\\n/gm,
-          "\n"
-        ),
+        client_email: this.clientEmail,
+        private_key: this.privateKey,
       },
       scopes: ["https://www.googleapis.com/auth/androidpublisher"],
     });
@@ -91,6 +83,7 @@ export class Google extends IAPProvider {
       | androidpublisher_v3.Schema$ProductPurchase,
     token: string,
     sku: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     includeNewer: boolean
   ): ParsedReceipt {
     let purchase;
