@@ -50,7 +50,7 @@ api.post("/purchase", async (req, res) => {
     const provider = getProvider(platform);
 
     const response = await provider.validate(token, sku);
-    const parsedReceipt = provider.parseReceipt(
+    const parsedReceipt = await provider.parseReceipt(
       response as AppleVerifyReceiptResponseBodySuccess,
       token,
       sku,

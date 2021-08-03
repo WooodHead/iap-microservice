@@ -1,12 +1,16 @@
 import crypto from "crypto";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
+import fetch from "node-fetch";
 import {
   AppleVerifyReceiptResponseBody,
   AppleVerifyReceiptResponseBodySuccess,
 } from "types-apple-iap";
 
+import db from "../database";
 import {
   ParsedReceipt,
+  Platform,
+  Product,
   Purchase,
   SubscriptionPeriodType,
   SubscriptionState,
@@ -27,7 +31,7 @@ export class IAPProvider {
     throw Error("Not implemented!");
   }
 
-  parseReceipt(
+  async parseReceipt(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     receipt:
       | AppleVerifyReceiptResponseBodySuccess
@@ -39,7 +43,7 @@ export class IAPProvider {
     sku: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     includeNewer: boolean
-  ): ParsedReceipt {
+  ): Promise<ParsedReceipt> {
     throw Error("Not implemented!");
   }
 
@@ -121,7 +125,39 @@ export class IAPProvider {
     return status;
   }
 
+  async getProduct(sku: string, platform: Platform): Promise<Product | null> {
+    return db.getProductBySku(sku, platform);
+  }
+
   getHash(token: string): string {
     return crypto.createHash("md5").update(token).digest("hex");
+  }
+
+  async getConvertedPrice(
+    price: number,
+    baseCurrency: string,
+    targetCurrency: string,
+    date: Date
+  ): Promise<number> {
+    baseCurrency = baseCurrency.toLowerCase();
+    targetCurrency = targetCurrency.toLowerCase();
+    const today = new Date().toISOString().split("T")[0];
+    let dateFormatted = date.toISOString().split("T")[0];
+    if (today === dateFormatted) {
+      // The repo may not be up-to-date with today's data yet
+      dateFormatted = "latest";
+    }
+    const url = `https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/${dateFormatted}/currencies/${baseCurrency}.json`;
+    const response = await fetch(url);
+    if (response.status !== 200) {
+      throw Error(`Failed to get forex data with status ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result[baseCurrency][targetCurrency]) {
+      return (price * result[baseCurrency][targetCurrency]) | 0; // Truncate decimals - we work in cents
+    } else {
+      throw Error(`Currency ${targetCurrency} not found in forex data`);
+    }
   }
 }

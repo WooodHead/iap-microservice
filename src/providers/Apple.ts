@@ -78,12 +78,12 @@ export default class Apple extends IAPProvider {
     )) as AppleVerifyReceiptResponseBodySuccess;
   }
 
-  parseReceipt(
+  async parseReceipt(
     receiptData: AppleVerifyReceiptResponseBodySuccess,
     token: string,
     sku: string,
     includeNewer: boolean
-  ): ParsedReceipt {
+  ): Promise<ParsedReceipt> {
     // The receipt contains both receipt.in_app and latest_receipt_info arrays
     // The most recent item in receipt.in_app is the actual transaction that
     // triggered the receipt, but if there are subscriptions associated with
@@ -116,11 +116,15 @@ export default class Apple extends IAPProvider {
     for (const transaction of transactions) {
       if (!this.isSubscription(transaction)) {
         purchases.push(
-          this.processPurchaseTransaction(transaction, receiptDate, isSandbox)
+          await this.processPurchaseTransaction(
+            transaction,
+            receiptDate,
+            isSandbox
+          )
         );
       } else {
         purchases.push(
-          this.processSubscriptionTransaction(transaction, receiptData)
+          await this.processSubscriptionTransaction(transaction, receiptData)
         );
       }
     }
@@ -130,21 +134,21 @@ export default class Apple extends IAPProvider {
     };
   }
 
-  processPurchaseTransaction(
+  async processPurchaseTransaction(
     transaction: AppleInAppPurchaseTransaction,
     receiptDate: Date,
     isSandbox: boolean
-  ): Purchase {
+  ): Promise<Purchase> {
     const purchase: Purchase = {
-      productId: null, // @TODO
+      productId: null,
       receiptId: null,
       isRefunded: !!transaction.cancellation_date_ms,
       isSandbox,
       receiptDate,
-      price: 0, // @TODO
-      currency: "", // @TODO
-      convertedPrice: 0, // @TODO
-      convertedCurrency: "", // @TODO
+      price: 0,
+      currency: "",
+      convertedPrice: 0,
+      convertedCurrency: "",
       isSubscription: !!transaction.expires_date,
       orderId: transaction.transaction_id,
       platform: "ios",
@@ -154,6 +158,17 @@ export default class Apple extends IAPProvider {
       refundDate: null,
       refundReason: null,
     };
+
+    const product = await this.getProduct(purchase.productSku, "ios");
+    if (product) {
+      // Note we don't know the currency the user purchased in, so we
+      // just use the base product pricing info.
+      purchase.productId = product.id;
+      purchase.price = product.price;
+      purchase.convertedPrice = product.price;
+      purchase.currency = product.currency;
+      purchase.convertedCurrency = product.currency;
+    }
 
     if (purchase.isRefunded) {
       if (transaction.cancellation_reason === "1") {
@@ -170,15 +185,15 @@ export default class Apple extends IAPProvider {
     return purchase;
   }
 
-  processSubscriptionTransaction(
+  async processSubscriptionTransaction(
     transaction: AppleInAppPurchaseTransaction,
     receipt: AppleVerifyReceiptResponseBodySuccess
-  ): Purchase {
+  ): Promise<Purchase> {
     const isSandbox = this.isSandbox(receipt);
     const receiptDate = new Date(
       parseInt(receipt.receipt.receipt_creation_date_ms)
     );
-    const purchase = this.processPurchaseTransaction(
+    const purchase = await this.processPurchaseTransaction(
       transaction,
       receiptDate,
       isSandbox

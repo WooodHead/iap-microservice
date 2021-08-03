@@ -319,18 +319,22 @@ describe("Parse Receipt Tests", () => {
   each([
     ["Sandbox", true],
     ["Production", false],
-  ]).test("Test isSandbox - environment %s == %s", (environment, expected) => {
-    const receipt: any = {
-      environment,
-      receipt: {
-        in_app: [{}],
-      },
-    };
+  ]).test(
+    "Test isSandbox - environment %s == %s",
+    async (environment, expected) => {
+      expect.assertions(1);
+      const receipt: any = {
+        environment,
+        receipt: {
+          in_app: [{}],
+        },
+      };
 
-    const apple = new Apple("");
-    const result = apple.parseReceipt(receipt, "", "", false);
-    expect(result.purchases[0].isSandbox).toEqual(expected);
-  });
+      const apple = new Apple("");
+      const result = await apple.parseReceipt(receipt, "", "", false);
+      expect(result.purchases[0].isSandbox).toEqual(expected);
+    }
+  );
 
   test("Detects Subscription purchase", () => {
     const apple = new Apple("");
@@ -360,8 +364,9 @@ describe("Process Purchase Tests", () => {
     [undefined, false],
   ]).test(
     "Test isRefunded - cancellation_date_ms %s == %s",
-    (cancellation_date_ms, expected) => {
-      const purchase = apple.processPurchaseTransaction(
+    async (cancellation_date_ms, expected) => {
+      expect.assertions(1);
+      const purchase = await apple.processPurchaseTransaction(
         {
           cancellation_date_ms,
         } as any,
@@ -377,8 +382,9 @@ describe("Process Purchase Tests", () => {
     [undefined, false],
   ]).test(
     "Test isSubscription - expires_date %s == %s",
-    (expires_date, expected) => {
-      const purchase = apple.processPurchaseTransaction(
+    async (expires_date, expected) => {
+      expect.assertions(1);
+      const purchase = await apple.processPurchaseTransaction(
         {
           expires_date,
         } as any,
@@ -394,8 +400,9 @@ describe("Process Purchase Tests", () => {
     ["0", "other"],
   ]).test(
     "Test refundReason - cancellation_reason %s == %s",
-    (cancellation_reason, expected) => {
-      const purchase = apple.processPurchaseTransaction(
+    async (cancellation_reason, expected) => {
+      expect.assertions(1);
+      const purchase = await apple.processPurchaseTransaction(
         {
           cancellation_date_ms: "10000",
           cancellation_reason,
@@ -424,7 +431,8 @@ describe("Process Subscription Tests", () => {
     ["false", false],
   ]).test(
     "Test isTrial - is_trial_period %s == %s",
-    (is_trial_period, expected) => {
+    async (is_trial_period, expected) => {
+      expect.assertions(1);
       const receipt: any = {
         receipt: {
           in_app: [
@@ -439,7 +447,7 @@ describe("Process Subscription Tests", () => {
         latest_receipt_info: [],
       };
 
-      const purchase = apple.processSubscriptionTransaction(
+      const purchase = await apple.processSubscriptionTransaction(
         receipt.receipt.in_app[0],
         receipt
       );
@@ -452,7 +460,8 @@ describe("Process Subscription Tests", () => {
     ["false", false],
   ]).test(
     "Test isIntroOfferPeriod - is_in_intro_offer_period %s == %s",
-    (is_in_intro_offer_period, expected) => {
+    async (is_in_intro_offer_period, expected) => {
+      expect.assertions(1);
       const receipt: any = {
         receipt: {
           in_app: [
@@ -465,7 +474,7 @@ describe("Process Subscription Tests", () => {
         latest_receipt_info: [],
       };
 
-      const purchase = apple.processSubscriptionTransaction(
+      const purchase = await apple.processSubscriptionTransaction(
         receipt.receipt.in_app[0],
         receipt
       );
@@ -478,7 +487,8 @@ describe("Process Subscription Tests", () => {
     [undefined, false],
   ]).test(
     "Test isSubscriptionRenewable - auto_renew_status %s == %s",
-    (auto_renew_status, expected) => {
+    async (auto_renew_status, expected) => {
+      expect.assertions(1);
       const receipt: any = {
         receipt: {
           in_app: [
@@ -499,7 +509,7 @@ describe("Process Subscription Tests", () => {
         ],
       };
 
-      const purchase = apple.processSubscriptionTransaction(
+      const purchase = await apple.processSubscriptionTransaction(
         receipt.receipt.in_app[0],
         receipt
       );
@@ -512,7 +522,8 @@ describe("Process Subscription Tests", () => {
     [undefined, false],
   ]).test(
     "Test isSubscriptionRetryPeriod - is_in_billing_retry_period %s == %s",
-    (is_in_billing_retry_period, expected) => {
+    async (is_in_billing_retry_period, expected) => {
+      expect.assertions(1);
       const receipt: any = {
         receipt: {
           in_app: [
@@ -533,7 +544,7 @@ describe("Process Subscription Tests", () => {
         ],
       };
 
-      const purchase = apple.processSubscriptionTransaction(
+      const purchase = await apple.processSubscriptionTransaction(
         receipt.receipt.in_app[0],
         receipt
       );
@@ -541,7 +552,8 @@ describe("Process Subscription Tests", () => {
     }
   );
 
-  test("Test isTrialConversion", () => {
+  test("Test isTrialConversion", async () => {
+    expect.assertions(1);
     const receipt: any = {
       receipt: {
         in_app: [
@@ -566,7 +578,7 @@ describe("Process Subscription Tests", () => {
         },
       ],
     };
-    const purchase = apple.processSubscriptionTransaction(
+    const purchase = await apple.processSubscriptionTransaction(
       receipt.receipt.in_app[0],
       receipt
     );
@@ -587,7 +599,8 @@ describe("Process Subscription Tests", () => {
     ], // Past Date
   ]).test(
     "Test isSubscriptionActive %s %s %s",
-    (expires_ms, cancellation_ms, expected) => {
+    async (expires_ms, cancellation_ms, expected) => {
+      expect.assertions(1);
       const receipt: any = {
         receipt: {
           in_app: [
@@ -599,7 +612,7 @@ describe("Process Subscription Tests", () => {
         },
         latest_receipt_info: [],
       };
-      const purchase = apple.processSubscriptionTransaction(
+      const purchase = await apple.processSubscriptionTransaction(
         receipt.receipt.in_app[0],
         receipt
       );
@@ -611,34 +624,39 @@ describe("Process Subscription Tests", () => {
     [new Date(new Date().getTime() + 5000).getTime().toString(), true], // Future Date
     [new Date(new Date().getTime() - 5000).getTime().toString(), false], // Past Date
     [undefined, false], // Past Date
-  ]).test("Test isSubscriptionGracePeriod %s %s", (timestamp, expected) => {
-    const receipt: any = {
-      receipt: {
-        in_app: [
+  ]).test(
+    "Test isSubscriptionGracePeriod %s %s",
+    async (timestamp, expected) => {
+      expect.assertions(1);
+      const receipt: any = {
+        receipt: {
+          in_app: [
+            {
+              expires_date_ms: "10000",
+            },
+          ],
+        },
+        latest_receipt_info: [
           {
-            expires_date_ms: "10000",
+            expires_date_ms: "1000000",
           },
         ],
-      },
-      latest_receipt_info: [
-        {
-          expires_date_ms: "1000000",
-        },
-      ],
-      pending_renewal_info: [
-        {
-          grace_period_expires_date_ms: timestamp,
-        },
-      ],
-    };
-    const purchase = apple.processSubscriptionTransaction(
-      receipt.receipt.in_app[0],
-      receipt
-    );
-    expect(purchase.isSubscriptionGracePeriod).toEqual(expected);
-  });
+        pending_renewal_info: [
+          {
+            grace_period_expires_date_ms: timestamp,
+          },
+        ],
+      };
+      const purchase = await apple.processSubscriptionTransaction(
+        receipt.receipt.in_app[0],
+        receipt
+      );
+      expect(purchase.isSubscriptionGracePeriod).toEqual(expected);
+    }
+  );
 
-  test("Attaches subscriptionGroup", () => {
+  test("Attaches subscriptionGroup", async () => {
+    expect.assertions(1);
     jest.spyOn(apple, "getOriginalOrder").mockImplementation((a, b) => {
       return {
         subscription_group_identifier: "abc",
@@ -656,7 +674,7 @@ describe("Process Subscription Tests", () => {
       latest_receipt_info: [],
       pending_renewal_info: [],
     };
-    const purchase = apple.processSubscriptionTransaction(
+    const purchase = await apple.processSubscriptionTransaction(
       receipt.receipt.in_app[0],
       receipt
     );

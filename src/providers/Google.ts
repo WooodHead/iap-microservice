@@ -1,8 +1,11 @@
 import { google, GoogleApis } from "googleapis";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
 
+import { getLogger } from "../logging";
 import { ParsedReceipt, Purchase, Receipt } from "../types";
 import { IAPProvider } from "./IAPProvider";
+
+const logger = getLogger("Google");
 
 export class Google extends IAPProvider {
   clientEmail = "";
@@ -101,7 +104,7 @@ export class Google extends IAPProvider {
     return purchase;
   }
 
-  parseReceipt(
+  async parseReceipt(
     receiptData:
       | androidpublisher_v3.Schema$SubscriptionPurchase
       | androidpublisher_v3.Schema$ProductPurchase,
@@ -109,12 +112,12 @@ export class Google extends IAPProvider {
     sku: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     includeNewer: boolean
-  ): ParsedReceipt {
+  ): Promise<ParsedReceipt> {
     let purchase;
     if (receiptData.kind === "androidpublisher#subscriptionPurchase") {
-      purchase = this.processSubscriptionTransaction(receiptData, sku);
+      purchase = await this.processSubscriptionTransaction(receiptData, sku);
     } else {
-      purchase = this.processPurchaseTransaction(receiptData, sku);
+      purchase = await this.processPurchaseTransaction(receiptData, sku);
     }
 
     const receipt: Receipt = {
@@ -131,19 +134,20 @@ export class Google extends IAPProvider {
     };
   }
 
-  processPurchaseTransaction(
+  async processPurchaseTransaction(
     transaction: androidpublisher_v3.Schema$ProductPurchase,
     sku: string
-  ): Purchase {
+  ): Promise<Purchase> {
     const purchaseDate = new Date(parseInt(transaction.purchaseTimeMillis));
-    return {
-      productId: null, // @TODO
+
+    const purchase: Purchase = {
+      productId: null,
       receiptId: null,
       isSandbox: transaction.purchaseType && transaction.purchaseType === 0,
-      price: 0, // @TODO
-      currency: "", // @TODO
-      convertedPrice: 0, // @TODO
-      convertedCurrency: "", // @TODO
+      price: 0,
+      currency: "",
+      convertedPrice: 0,
+      convertedCurrency: "",
       receiptDate: purchaseDate,
       isSubscription: false,
       orderId: transaction.orderId,
@@ -158,12 +162,24 @@ export class Google extends IAPProvider {
       refundDate: null, // @TODO
       refundReason: null, // @TODO
     };
+
+    const product = await this.getProduct(purchase.productSku, "android");
+    if (product) {
+      // Google does not include purchase price info with ProductPurchases (ony subscriptions)
+      purchase.productId = product.id;
+      purchase.price = product.price;
+      purchase.convertedPrice = product.price;
+      purchase.currency = product.currency;
+      purchase.convertedCurrency = product.currency;
+    }
+
+    return purchase;
   }
 
-  processSubscriptionTransaction(
+  async processSubscriptionTransaction(
     transaction: androidpublisher_v3.Schema$SubscriptionPurchase,
     sku: string
-  ): Purchase {
+  ): Promise<Purchase> {
     const purchaseDate = new Date(parseInt(transaction.startTimeMillis));
 
     // Try to re-create the order ID history if the order has '..' in it
@@ -233,6 +249,36 @@ export class Google extends IAPProvider {
       gracePeriodEndDate: null,
       linkedToken: transaction.linkedPurchaseToken,
     };
+
+    const product = await this.getProduct(purchase.productSku, "android");
+    if (product) {
+      const priceMicros = parseInt(transaction.priceAmountMicros, 10);
+      purchase.productId = product.id;
+      purchase.convertedPrice = product.price;
+      purchase.convertedCurrency = product.currency;
+      if (!isNaN(priceMicros)) {
+        // Note: we store price in cents
+        purchase.price = priceMicros / 10000;
+        purchase.currency = transaction.priceCurrencyCode.toUpperCase();
+      } else {
+        purchase.price = product.price;
+        purchase.currency = product.currency;
+      }
+
+      if (purchase.currency !== product.currency) {
+        try {
+          purchase.convertedPrice = await this.getConvertedPrice(
+            purchase.price,
+            purchase.currency,
+            product.currency,
+            purchase.purchaseDate
+          );
+        } catch (e) {
+          logger.error(e.message);
+          // If conversion fails we just fall back to the product price and currency
+        }
+      }
+    }
 
     if (transaction.cancelSurveyResult) {
       purchase.cancellationReason = "customer_cancelled";
