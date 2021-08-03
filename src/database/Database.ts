@@ -17,6 +17,7 @@ export interface Database {
   getReceiptsByUserId(userId: string): Promise<Receipt[]>;
 
   getProductBySku(sku: string, platform: Platform): Promise<Product>;
+  getProductById(id: string): Promise<Product>;
   createProduct(product: Product): Promise<Product>;
   updateProduct(product: Product): Promise<Product>;
 }

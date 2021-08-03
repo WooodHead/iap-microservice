@@ -159,6 +159,14 @@ export class MySQL implements Database {
     })) as Product;
   }
 
+  async getProductById(id: string): Promise<Product> {
+    return (await this.prisma.product.findUnique({
+      where: {
+        id: id,
+      },
+    })) as Product;
+  }
+
   async getProductBySku(sku: string, platform: Platform): Promise<Product> {
     if (platform === "ios") {
       return (await this.prisma.product.findUnique({

@@ -215,6 +215,68 @@ api.get("/user/:userId/receipts", async (req, res) => {
   }
 });
 
+api.post("/product", async (req, res) => {
+  try {
+    const id = req.body.id || null;
+    const skuAndroid = req.body.sku_android || null;
+    const skuIOS = req.body.sku_ios || null;
+    let price = req.body.price;
+    const currency = req.body.currency;
+
+    if (!skuAndroid && !skuIOS) {
+      throw Error("sku_android and/or sku_ios are required");
+    }
+    if (isNaN(price)) {
+      throw Error("price is required");
+    }
+    if (!currency) {
+      throw Error("currency is required");
+    }
+
+    price = parseInt(price, 10);
+
+    let product;
+    if (id) {
+      product = await db.updateProduct({
+        id,
+        skuAndroid,
+        skuIOS,
+        price,
+        currency: currency.toUpperCase(),
+      });
+    } else {
+      product = await db.createProduct({
+        skuAndroid,
+        skuIOS,
+        price,
+        currency: currency.toUpperCase(),
+      });
+    }
+
+    res.send(product);
+  } catch (e) {
+    logger.error(e.message);
+    res.status(500);
+    res.send({
+      error: e.message,
+    });
+  }
+});
+
+api.get("/product/:productId", async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const product = await db.getProductById(productId);
+    res.send(product);
+  } catch (e) {
+    logger.error(e.message);
+    res.status(500);
+    res.send({
+      error: e.message,
+    });
+  }
+});
+
 api.get("/cron", async (req, res) => {
   // Testing out voided purchases
   const provider = getProvider("android") as Google;

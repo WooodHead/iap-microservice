@@ -59,6 +59,10 @@ export class DummyDB implements Database {
     return Promise.resolve(product);
   }
 
+  getProductById(id: string): Promise<Product> {
+    return Promise.resolve(null);
+  }
+
   getProductBySku(sku: string, platform: Platform): Promise<Product> {
     return Promise.resolve(null);
   }
