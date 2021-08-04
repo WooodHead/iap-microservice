@@ -57,6 +57,8 @@ export type Purchase = {
   refundDate: Date | null;
   refundReason: "issue" | "subscription_replace" | "other" | null;
 
+  // @TODO: productType
+
   // Subscription Flags
   isSubscription: boolean;
   isTrial?: boolean;

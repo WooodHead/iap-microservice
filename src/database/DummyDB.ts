@@ -47,6 +47,13 @@ export class DummyDB implements Database {
     return Promise.resolve([]);
   }
 
+  getPurchasesByOriginalPurchaseId(
+    userId: string,
+    originalPurchaseId: string
+  ): Promise<Purchase[]> {
+    return Promise.resolve([]);
+  }
+
   getReceiptById(id: string): Promise<Receipt> {
     return Promise.resolve(null);
   }

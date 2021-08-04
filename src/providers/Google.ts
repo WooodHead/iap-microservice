@@ -143,7 +143,9 @@ export class Google extends IAPProvider {
     const purchase: Purchase = {
       productId: null,
       receiptId: null,
-      isSandbox: transaction.purchaseType && transaction.purchaseType === 0,
+      isSandbox:
+        transaction.purchaseType !== undefined &&
+        transaction.purchaseType === 0,
       price: 0,
       currency: "",
       convertedPrice: 0,

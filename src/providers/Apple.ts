@@ -206,9 +206,10 @@ export default class Apple extends IAPProvider {
       );
     });
 
-    const sortedLatestInfo = [...receipt.latest_receipt_info].sort(
-      Apple.sortTransactionsDesc
-    );
+    const sortedLatestInfo = [
+      ...(receipt.receipt.in_app || []),
+      ...receipt.latest_receipt_info,
+    ].sort(Apple.sortTransactionsDesc);
 
     const priorTransactions = sortedLatestInfo.filter((item) => {
       return (
@@ -225,7 +226,9 @@ export default class Apple extends IAPProvider {
     // For subscriptions we use the 'web_order_line_item_id' instead of 'transaction_id'
     // to identify a Purchase
     purchase.orderId = transaction.web_order_line_item_id;
-    purchase.originalOrderId = originalOrder.web_order_line_item_id;
+    purchase.originalOrderId = originalOrder
+      ? originalOrder.web_order_line_item_id
+      : null;
     purchase.linkedOrderId = linkedOrder
       ? linkedOrder.web_order_line_item_id
       : null;
@@ -241,10 +244,17 @@ export default class Apple extends IAPProvider {
       renewalInfo?.is_in_billing_retry_period === "1" || false;
     purchase.isSubscriptionGracePeriod = false;
     purchase.isSubscriptionPaused = false; // Not supported by Apple
-    purchase.subscriptionRenewalProductSku =
-      renewalInfo?.auto_renew_product_id || null;
+    purchase.subscriptionRenewalProductSku = null;
 
-    if (originalOrder.subscription_group_identifier) {
+    if (
+      renewalInfo?.auto_renew_product_id &&
+      renewalInfo?.auto_renew_product_id !== purchase.productSku
+    ) {
+      purchase.subscriptionRenewalProductSku =
+        renewalInfo?.auto_renew_product_id;
+    }
+
+    if (originalOrder && originalOrder.subscription_group_identifier) {
       purchase.subscriptionGroup = originalOrder.subscription_group_identifier;
     }
 

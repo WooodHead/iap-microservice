@@ -1,10 +1,7 @@
 import crypto from "crypto";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
 import fetch from "node-fetch";
-import {
-  AppleVerifyReceiptResponseBody,
-  AppleVerifyReceiptResponseBodySuccess,
-} from "types-apple-iap";
+import { AppleVerifyReceiptResponseBody } from "types-apple-iap";
 
 import db from "../database";
 import {
@@ -18,6 +15,113 @@ import {
 } from "../types";
 
 export class IAPProvider {
+  async purchase(
+    token: string,
+    sku: string,
+    includeNewer: boolean,
+    userId?: string,
+    syncUserId?: boolean
+  ): Promise<Purchase> {
+    const response = await this.validate(token, sku);
+    const parsedReceipt = await this.parseReceipt(
+      response,
+      token,
+      sku,
+      includeNewer
+    );
+
+    // If userId was not passed, lookup user ID from past purchases,
+    // if it was, check that it matches what we have on file.
+    // If it doesn't match, update all existing purchases with the new userId
+    const existingUserId = await db.getUserId(
+      parsedReceipt.purchases.map((item) => item.orderId)
+    );
+    if (!userId) {
+      userId = existingUserId;
+    } else if (
+      syncUserId &&
+      existingUserId != null &&
+      userId != existingUserId
+    ) {
+      await db.syncUserId(existingUserId, userId);
+    }
+
+    parsedReceipt.receipt.userId = userId;
+    let dbReceipt = await db.getReceiptByHash(parsedReceipt.receipt.hash);
+    if (!dbReceipt) {
+      dbReceipt = await db.createReceipt(parsedReceipt.receipt);
+    } else {
+      if (userId) {
+        dbReceipt.userId = userId;
+      }
+      dbReceipt = await db.updateReceipt(dbReceipt);
+    }
+
+    // parseReceipt will return purchases sorted desc. Reverse them so we save them
+    // in chronological order allowing linked and original purchase links to be established
+    const purchases = parsedReceipt.purchases;
+    purchases.reverse();
+    let returnPurchase = null;
+    for (const purchase of purchases) {
+      purchase.receiptId = dbReceipt.id;
+      if (userId) {
+        purchase.userId = userId;
+      }
+
+      if (
+        purchase.platform === "android" &&
+        purchase.isSubscription &&
+        purchase.linkedToken
+      ) {
+        const linkedHash = this.getHash(purchase.linkedToken);
+        const linkedPurchases = await db.getPurchasesByReceiptHash(linkedHash);
+        if (linkedPurchases.length) {
+          purchase.linkedOrderId = linkedPurchases[0].orderId;
+          purchase.originalOrderId = linkedPurchases[0].originalOrderId;
+        }
+      }
+
+      let dbPurchase = await db.getPurchaseByOrderId(purchase.orderId);
+
+      if (purchase.originalOrderId) {
+        const originalPurchase = await db.getPurchaseByOrderId(
+          purchase.originalOrderId
+        );
+        if (originalPurchase) {
+          purchase.originalPurchaseId = originalPurchase.id;
+        }
+      }
+      if (purchase.linkedOrderId) {
+        const linkedPurchase = await db.getPurchaseByOrderId(
+          purchase.linkedOrderId
+        );
+        if (linkedPurchase) {
+          purchase.linkedPurchaseId = linkedPurchase.id;
+        }
+      }
+
+      if (!dbPurchase) {
+        dbPurchase = await db.createPurchase(purchase);
+        if (purchase.orderId === purchase.originalOrderId) {
+          dbPurchase.originalPurchaseId = dbPurchase.id;
+          dbPurchase = await db.updatePurchase(dbPurchase.id, dbPurchase);
+        }
+      } else {
+        // Only reprocess this purchase is the current receipt is from before
+        // the one we have on file
+        // This prevents overwriting historic subscription statuses and token values
+        // for old purchases
+        if (dbPurchase.receiptDate >= purchase.receiptDate) {
+          dbPurchase = await db.updatePurchase(dbPurchase.id, purchase);
+        }
+      }
+
+      returnPurchase = dbPurchase;
+    }
+
+    return returnPurchase;
+  }
+
   validate(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     token: string,
@@ -34,7 +138,7 @@ export class IAPProvider {
   async parseReceipt(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     receipt:
-      | AppleVerifyReceiptResponseBodySuccess
+      | AppleVerifyReceiptResponseBody
       | androidpublisher_v3.Schema$ProductPurchase
       | androidpublisher_v3.Schema$SubscriptionPurchase,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

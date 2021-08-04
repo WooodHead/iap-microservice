@@ -9,6 +9,10 @@ export interface Database {
   getUserId(orderIds: string[]): Promise<string | null>;
   syncUserId(oldUserId: string, newUserId: string): Promise<void>;
   getPurchasesByUserId(userId: string): Promise<Purchase[]>;
+  getPurchasesByOriginalPurchaseId(
+    userId: string,
+    originalPurchaseId: string
+  ): Promise<Purchase[]>;
 
   getReceiptById(id: string): Promise<Receipt>;
   getReceiptByHash(hash: string): Promise<Receipt>;
