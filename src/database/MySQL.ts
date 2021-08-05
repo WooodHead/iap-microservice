@@ -68,6 +68,21 @@ export class MySQL implements Database {
     return purchases as Purchase[];
   }
 
+  async getLatestPurchaseByOriginalOrderId(
+    originalOrderId: string
+  ): Promise<Purchase> {
+    const purchase = await this.prisma.purchase.findFirst({
+      where: {
+        OR: [{ originalOrderId }, { orderId: originalOrderId }],
+      },
+      orderBy: {
+        purchaseDate: "desc",
+      },
+    });
+
+    return purchase as Purchase;
+  }
+
   async getPurchasesByReceiptHash(hash: string): Promise<Purchase[]> {
     const purchases = await this.prisma.purchase.findMany({
       where: {
@@ -75,6 +90,20 @@ export class MySQL implements Database {
           hash,
         },
       },
+      orderBy: {
+        purchaseDate: "desc",
+      },
+    });
+
+    return purchases as Purchase[];
+  }
+
+  async getPurchasesToRefresh(): Promise<Purchase[]> {
+    const purchases = await this.prisma.purchase.findMany({
+      where: {
+        OR: [{ isSubscriptionActive: true }, { isSubscriptionRenewable: true }],
+      },
+      distinct: ["originalOrderId"],
       orderBy: {
         purchaseDate: "desc",
       },
@@ -209,5 +238,14 @@ export class MySQL implements Database {
       },
       data: product,
     })) as Product;
+  }
+
+  async addIncomingNotification(platform: string, data: any): Promise<void> {
+    await this.prisma.incomingNotification.create({
+      data: {
+        platform,
+        data,
+      },
+    });
   }
 }

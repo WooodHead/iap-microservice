@@ -20,6 +20,7 @@ CREATE TABLE `purchases` (
     `isRefunded` BOOLEAN NOT NULL DEFAULT false,
     `isSandbox` BOOLEAN NOT NULL DEFAULT false,
     `productSku` VARCHAR(255) NOT NULL,
+    `productType` VARCHAR(255) NOT NULL,
     `quantity` INTEGER NOT NULL DEFAULT 0,
     `platform` VARCHAR(7) NOT NULL,
     `isTrial` BOOLEAN,

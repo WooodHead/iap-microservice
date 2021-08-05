@@ -33,6 +33,19 @@ export type SubscriptionStatus =
   | "retry_period"
   | "paused";
 
+export type PurchaseEventType =
+  | "unknown"
+  | "purchase"
+  | "refund"
+  | "subscription_renewal"
+  | "subscription_renewal_retry"
+  | "subscription_grace_period_expire"
+  | "subscription_product_change"
+  | "subscription_replace"
+  | "subscription_cancel"
+  | "subscription_uncancel"
+  | "subscription_expire";
+
 export type Purchase = {
   id?: string;
   receiptId: string;
@@ -48,6 +61,7 @@ export type Purchase = {
   platform: Platform;
   orderId?: string;
   productSku: string;
+  productType: "consumable" | "non_consumable" | "renewable_subscription";
   purchaseDate: Date;
   price: number;
   currency: string;
@@ -56,8 +70,6 @@ export type Purchase = {
   receiptDate: Date;
   refundDate: Date | null;
   refundReason: "issue" | "subscription_replace" | "other" | null;
-
-  // @TODO: productType
 
   // Subscription Flags
   isSubscription: boolean;
@@ -81,7 +93,6 @@ export type Purchase = {
   cancellationReason?: CancellationReason;
   expirationDate?: Date;
   gracePeriodEndDate?: Date;
-  token?: string;
   linkedToken?: string; // Android only
 };
 
@@ -102,6 +113,11 @@ export type Receipt = {
 export type ParsedReceipt = {
   receipt: Receipt;
   purchases: Purchase[];
+};
+
+export type PurchaseEvent = {
+  type: PurchaseEventType;
+  data: Purchase;
 };
 
 export type Product = {

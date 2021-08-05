@@ -36,6 +36,7 @@ model Purchase {
   isRefunded        Boolean   @default(false)
   isSandbox         Boolean   @default(false)
   productSku        String    @db.VarChar(255)
+  productType       String    @db.VarChar(255)
   quantity          Int       @default(0)
   platform          String    @db.VarChar(7)
 
@@ -57,7 +58,6 @@ model Purchase {
   cancellationReason            String?   @db.VarChar(23)
   expirationDate                DateTime?
   gracePeriodEndDate            DateTime?
-  token                         String?   @db.Text
   linkedToken                   String?   @db.Text
   createdAt                     DateTime  @default(now())
   modifiedAt                    DateTime  @updatedAt
@@ -104,4 +104,14 @@ model Product {
   @@index(fields: [skuAndroid])
   @@index(fields: [skuIOS])
   @@map("products")
+}
+
+model IncomingNotification {
+  id         String   @id @default(cuid())
+  platform   String   @db.VarChar(7)
+  data       Json     @db.Json
+  createdAt  DateTime @default(now())
+  modifiedAt DateTime @updatedAt
+
+  @@map("incoming_notifications")
 }

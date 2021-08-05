@@ -3,6 +3,9 @@ import { Platform, Product, Purchase, Receipt } from "../types";
 export interface Database {
   getPurchaseById(id: string): Promise<Purchase>;
   getPurchaseByOrderId(orderId: string): Promise<Purchase>;
+  getLatestPurchaseByOriginalOrderId(
+    originalOrderId: string
+  ): Promise<Purchase>;
   getPurchasesByReceiptHash(hash: string): Promise<Purchase[]>;
   createPurchase(purchase: Purchase): Promise<Purchase>;
   updatePurchase(id: string, purchase: Purchase): Promise<Purchase>;
@@ -13,6 +16,7 @@ export interface Database {
     userId: string,
     originalPurchaseId: string
   ): Promise<Purchase[]>;
+  getPurchasesToRefresh(): Promise<Purchase[]>;
 
   getReceiptById(id: string): Promise<Receipt>;
   getReceiptByHash(hash: string): Promise<Receipt>;
@@ -24,4 +28,6 @@ export interface Database {
   getProductById(id: string): Promise<Product>;
   createProduct(product: Product): Promise<Product>;
   updateProduct(product: Product): Promise<Product>;
+
+  addIncomingNotification(platform: string, data: any): Promise<void>;
 }

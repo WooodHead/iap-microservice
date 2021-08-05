@@ -2,11 +2,11 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import express from "express";
 import * as http from "http";
+import fetch from "node-fetch";
 
 import db from "./database";
 import { getLogger } from "./logging";
 import { getProvider } from "./providers";
-import { Google } from "./providers/Google";
 
 const port = process.env.PORT || 8080;
 
@@ -16,7 +16,21 @@ const api = express();
 api.use(cors());
 api.use(bodyParser.json({ limit: "15mb" }));
 
-api.post("/validate", async (req, res) => {
+const validateAuthTokenMiddleware = (req: any, res: any, next: any) => {
+  if (!req.headers["authorization"]) {
+    logger.warn("Missing Authorization header");
+    res.status(401).send({ error: "Missing Authorization header" });
+    return;
+  }
+
+  if (req.headers["authorization"] === `ApiKey ${process.env.API_KEY}`) {
+    next();
+  } else {
+    res.status(401).send({ error: "Invalid auth token" });
+  }
+};
+
+api.post("/validate", validateAuthTokenMiddleware, async (req, res) => {
   try {
     const provider = getProvider(req.body.platform);
     const result = await provider.validate(req.body.token, req.body.sku);
@@ -30,7 +44,7 @@ api.post("/validate", async (req, res) => {
   }
 });
 
-api.post("/receipt", async (req, res) => {
+api.post("/receipt", validateAuthTokenMiddleware, async (req, res) => {
   try {
     // Params:
     // token - Apple/Google purchase token
@@ -47,14 +61,15 @@ api.post("/receipt", async (req, res) => {
     const syncUserId = !!req.body.sync_user;
 
     const provider = getProvider(platform);
-    const purchase = await provider.purchase(
+    const purchaseEvent = await provider.processToken(
       token,
       sku,
       includeNewer,
       userId,
       syncUserId
     );
-    res.send(purchase);
+    res.send(purchaseEvent.data);
+    await provider.sendPurchaseWebhook(purchaseEvent);
   } catch (e) {
     logger.error(e.message);
     res.status(500);
@@ -64,7 +79,7 @@ api.post("/receipt", async (req, res) => {
   }
 });
 
-api.get("/receipt/:id", async (req, res) => {
+api.get("/receipt/:id", validateAuthTokenMiddleware, async (req, res) => {
   try {
     const receipt = await db.getReceiptById(req.params.id);
     if (receipt) {
@@ -81,16 +96,7 @@ api.get("/receipt/:id", async (req, res) => {
   }
 });
 
-api.post("/webhook/apple", (req, res) => {
-  // Apple server-server notification
-
-  // const body = req.body;
-  // console.log(body);
-
-  res.sendStatus(200);
-});
-
-api.get("/purchase/:id", async (req, res) => {
+api.get("/purchase/:id", validateAuthTokenMiddleware, async (req, res) => {
   try {
     const purchase = await db.getPurchaseById(req.params.id);
     if (purchase) {
@@ -107,55 +113,69 @@ api.get("/purchase/:id", async (req, res) => {
   }
 });
 
-api.get("/user/:userId/purchases", async (req, res) => {
-  try {
-    const userId = req.params.userId;
-    const purchases = await db.getPurchasesByUserId(userId);
-    res.send(purchases);
-  } catch (e) {
-    logger.error(e.message);
-    res.status(500);
-    res.send({
-      error: e.message,
-    });
+api.get(
+  "/user/:userId/purchases",
+  validateAuthTokenMiddleware,
+  async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const purchases = await db.getPurchasesByUserId(userId);
+      res.send(purchases);
+    } catch (e) {
+      logger.error(e.message);
+      res.status(500);
+      res.send({
+        error: e.message,
+      });
+    }
   }
-});
+);
 
-api.get("/user/:userId/purchases/:originalId", async (req, res) => {
-  // Get all purchases relating to a given purchase ID
-  logger.debug(`/user/${req.params.userId}/purchases/${req.params.originalId}`);
-  try {
-    const userId = req.params.userId;
-    const originalPurchaseId = req.params.originalId;
-    const purchases = await db.getPurchasesByOriginalPurchaseId(
-      userId,
-      originalPurchaseId
+api.get(
+  "/user/:userId/purchases/:originalId",
+  validateAuthTokenMiddleware,
+  async (req, res) => {
+    // Get all purchases relating to a given purchase ID
+    logger.debug(
+      `/user/${req.params.userId}/purchases/${req.params.originalId}`
     );
-    res.send(purchases);
-  } catch (e) {
-    logger.error(e.message);
-    res.status(500);
-    res.send({
-      error: e.message,
-    });
+    try {
+      const userId = req.params.userId;
+      const originalPurchaseId = req.params.originalId;
+      const purchases = await db.getPurchasesByOriginalPurchaseId(
+        userId,
+        originalPurchaseId
+      );
+      res.send(purchases);
+    } catch (e) {
+      logger.error(e.message);
+      res.status(500);
+      res.send({
+        error: e.message,
+      });
+    }
   }
-});
+);
 
-api.get("/user/:userId/receipts", async (req, res) => {
-  try {
-    const userId = req.params.userId;
-    const receipts = await db.getReceiptsByUserId(userId);
-    res.send(receipts);
-  } catch (e) {
-    logger.error(e.message);
-    res.status(500);
-    res.send({
-      error: e.message,
-    });
+api.get(
+  "/user/:userId/receipts",
+  validateAuthTokenMiddleware,
+  async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const receipts = await db.getReceiptsByUserId(userId);
+      res.send(receipts);
+    } catch (e) {
+      logger.error(e.message);
+      res.status(500);
+      res.send({
+        error: e.message,
+      });
+    }
   }
-});
+);
 
-api.post("/product", async (req, res) => {
+api.post("/product", validateAuthTokenMiddleware, async (req, res) => {
   try {
     const id = req.body.id || null;
     const skuAndroid = req.body.sku_android || null;
@@ -203,25 +223,71 @@ api.post("/product", async (req, res) => {
   }
 });
 
-api.get("/product/:productId", async (req, res) => {
-  try {
-    const productId = req.params.productId;
-    const product = await db.getProductById(productId);
-    res.send(product);
-  } catch (e) {
-    logger.error(e.message);
-    res.status(500);
-    res.send({
-      error: e.message,
-    });
+api.get(
+  "/product/:productId",
+  validateAuthTokenMiddleware,
+  async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const product = await db.getProductById(productId);
+      res.send(product);
+    } catch (e) {
+      logger.error(e.message);
+      res.status(500);
+      res.send({
+        error: e.message,
+      });
+    }
   }
+);
+
+api.post("/webhook/apple", async (req, res) => {
+  logger.debug("/webhook/apple");
+  // Apple server-server notification
+  if (process.env.WEBHOOK_RELAY_APPLE_ENDPOINT) {
+    try {
+      // Relay the message forward
+      await fetch(process.env.WEBHOOK_RELAY_APPLE_ENDPOINT, {
+        method: "post",
+        body: JSON.stringify(req.body),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      logger.debug("Successfully relayed apple webhook");
+    } catch (e) {
+      logger.error(`Failed to relay apple webhook: ${e.message}`);
+    }
+  } else {
+    logger.debug("Will not relay apple webhook");
+  }
+
+  await db.addIncomingNotification("ios", req.body);
+  const provider = getProvider("ios");
+  const purchaseEvent = await provider.serverNotification(req.body);
+  await provider.sendPurchaseWebhook(purchaseEvent);
+
+  res.sendStatus(200);
 });
 
 api.get("/cron", async (req, res) => {
-  // Testing out voided purchases
-  const provider = getProvider("android") as Google;
-  const result = await provider.getVoidedPurchases();
-  res.send(result);
+  logger.debug("/cron");
+  // // Testing out voided purchases
+  // const provider = getProvider("android") as Google;
+  // const result = await provider.getVoidedPurchases();
+
+  const purchases = await db.getPurchasesToRefresh();
+  for (const purchase of purchases) {
+    const receipt = await db.getReceiptById(purchase.receiptId);
+    const provider = getProvider(purchase.platform);
+    const purchaseEvent = await provider.processToken(
+      receipt.token,
+      purchase.productSku,
+      true
+    );
+    await provider.sendPurchaseWebhook(purchaseEvent);
+  }
+  res.sendStatus(200);
 });
 
 http.createServer(api).listen(port, async () => {

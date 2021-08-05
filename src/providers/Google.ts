@@ -155,6 +155,7 @@ export class Google extends IAPProvider {
       orderId: transaction.orderId,
       platform: "android",
       productSku: sku,
+      productType: "consumable", // @TODO: Non consumable type
       purchaseDate,
       quantity: transaction.quantity,
 
@@ -163,6 +164,28 @@ export class Google extends IAPProvider {
       isRefunded: false, // #TODO
       refundDate: null, // @TODO
       refundReason: null, // @TODO
+      cancellationReason: null,
+      expirationDate: null,
+      gracePeriodEndDate: null,
+      isIntroOfferPeriod: null,
+      isSubscriptionActive: null,
+      isSubscriptionGracePeriod: null,
+      isSubscriptionPaused: null,
+      isSubscriptionRenewable: null,
+      isSubscriptionRetryPeriod: null,
+      isTrial: null,
+      isTrialConversion: null,
+      linkedOrderId: null,
+      linkedPurchaseId: null,
+      linkedToken: null,
+      originalOrderId: null,
+      originalPurchaseId: null,
+      subscriptionGroup: null,
+      subscriptionPeriodType: null,
+      subscriptionRenewalProductSku: null,
+      subscriptionState: null,
+      subscriptionStatus: null,
+      userId: null,
     };
 
     const product = await this.getProduct(purchase.productSku, "android");
@@ -201,6 +224,9 @@ export class Google extends IAPProvider {
     const isSubscriptionActive = new Date() < expirationDate;
 
     const purchase: Purchase = {
+      linkedPurchaseId: null,
+      originalPurchaseId: null,
+      userId: null,
       productId: null, // @TODO
       receiptId: null,
       isSandbox:
@@ -215,6 +241,7 @@ export class Google extends IAPProvider {
       orderId: transaction.orderId,
       platform: "android",
       productSku: sku,
+      productType: "renewable_subscription",
       purchaseDate,
       quantity: 1,
 

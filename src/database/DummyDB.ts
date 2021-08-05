@@ -54,6 +54,16 @@ export class DummyDB implements Database {
     return Promise.resolve([]);
   }
 
+  getLatestPurchaseByOriginalOrderId(
+    originalOrderId: string
+  ): Promise<Purchase> {
+    return Promise.resolve(undefined);
+  }
+
+  getPurchasesToRefresh(): Promise<Purchase[]> {
+    return Promise.resolve([]);
+  }
+
   getReceiptById(id: string): Promise<Receipt> {
     return Promise.resolve(null);
   }
@@ -76,5 +86,9 @@ export class DummyDB implements Database {
 
   updateProduct(product: Product): Promise<Product> {
     return Promise.resolve(product);
+  }
+
+  addIncomingNotification(platform: string, data: any): Promise<void> {
+    return Promise.resolve();
   }
 }

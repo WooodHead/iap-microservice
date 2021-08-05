@@ -3,13 +3,20 @@ import {
   AppleInAppPurchaseTransaction,
   AppleLatestReceiptInfo,
   ApplePendingRenewalInfo,
+  AppleServerNotificationResponseBody,
   AppleVerifyReceiptErrorCode,
   AppleVerifyReceiptResponseBody,
   AppleVerifyReceiptResponseBodySuccess,
   AppleVerifyReceiptSuccessfulStatus,
 } from "types-apple-iap";
 
-import { CancellationReason, ParsedReceipt, Purchase, Receipt } from "../types";
+import {
+  CancellationReason,
+  ParsedReceipt,
+  Purchase,
+  PurchaseEvent,
+  Receipt,
+} from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 const ENDPOINT_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt";
@@ -78,6 +85,72 @@ export default class Apple extends IAPProvider {
     )) as AppleVerifyReceiptResponseBodySuccess;
   }
 
+  async serverNotification(
+    notification: AppleServerNotificationResponseBody
+  ): Promise<PurchaseEvent> {
+    if (notification.password !== this.sharedSecret) {
+      throw Error("Bad request");
+    }
+
+    const token = notification.unified_receipt.latest_receipt;
+    const sku = notification.auto_renew_product_id;
+    const includeNewer = true;
+
+    return this.processToken(token, sku, includeNewer);
+
+    /*
+    if (serverUpdateType === "unknown") {
+      switch (notification.notification_type) {
+        case AppleServerNotificationType.DID_CHANGE_RENEWAL_PREF:
+          if (purchase.subscriptionRenewalProductSku) {
+            serverUpdateType = "subscription_product_change";
+          }
+          break;
+        case AppleServerNotificationType.DID_CHANGE_RENEWAL_STATUS:
+          if (notification.auto_renew_status === "false") {
+            serverUpdateType = "subscription_cancel";
+          } else {
+            serverUpdateType = "subscription_uncancel";
+          }
+          break;
+        case AppleServerNotificationType.DID_FAIL_TO_RENEW:
+          if (purchase.isSubscriptionRenewable) {
+            serverUpdateType = "subscription_renewal_retry";
+          } else {
+            serverUpdateType = "subscription_expire";
+          }
+          break;
+        case AppleServerNotificationType.DID_RECOVER:
+        case AppleServerNotificationType.DID_RENEW:
+        case AppleServerNotificationType.INTERACTIVE_RENEWAL:
+          serverUpdateType = "subscription_renewal";
+          break;
+        case AppleServerNotificationType.INITIAL_BUY:
+          serverUpdateType = "purchase";
+          break;
+        // case AppleServerNotificationType.PRICE_INCREASE_CONSENT:
+        //   serverUpdateType = "purchase";
+        //   break;
+        case AppleServerNotificationType.CANCEL:
+        case AppleServerNotificationType.REFUND:
+          serverUpdateType = "refund";
+          break;
+      }
+      console.log(
+        notification.notification_type,
+        "Fallback to",
+        serverUpdateType
+      );
+    } else {
+      console.log(
+        notification.notification_type,
+        "determined as",
+        serverUpdateType
+      );
+    }
+     */
+  }
+
   async parseReceipt(
     receiptData: AppleVerifyReceiptResponseBodySuccess,
     token: string,
@@ -140,8 +213,6 @@ export default class Apple extends IAPProvider {
     isSandbox: boolean
   ): Promise<Purchase> {
     const purchase: Purchase = {
-      productId: null,
-      receiptId: null,
       isRefunded: !!transaction.cancellation_date_ms,
       isSandbox,
       receiptDate,
@@ -153,10 +224,35 @@ export default class Apple extends IAPProvider {
       orderId: transaction.transaction_id,
       platform: "ios",
       productSku: transaction.product_id,
+      productType: "consumable", // @TODO: Non consumable type
       purchaseDate: new Date(parseInt(transaction.purchase_date_ms)),
       quantity: parseInt(transaction.quantity),
       refundDate: null,
       refundReason: null,
+      cancellationReason: null,
+      expirationDate: null,
+      gracePeriodEndDate: null,
+      isIntroOfferPeriod: null,
+      isSubscriptionActive: null,
+      isSubscriptionGracePeriod: null,
+      isSubscriptionPaused: null,
+      isSubscriptionRenewable: null,
+      isSubscriptionRetryPeriod: null,
+      isTrial: null,
+      isTrialConversion: null,
+      linkedOrderId: null,
+      linkedPurchaseId: null,
+      linkedToken: null,
+      originalOrderId: null,
+      originalPurchaseId: null,
+      subscriptionGroup: null,
+      subscriptionPeriodType: null,
+      subscriptionRenewalProductSku: null,
+      subscriptionState: null,
+      subscriptionStatus: null,
+      userId: null,
+      productId: null,
+      receiptId: null,
     };
 
     const product = await this.getProduct(purchase.productSku, "ios");
@@ -199,13 +295,6 @@ export default class Apple extends IAPProvider {
       isSandbox
     );
 
-    const renewalInfo = receipt.pending_renewal_info?.find((item) => {
-      return (
-        item.original_transaction_id === transaction.original_transaction_id &&
-        item.product_id === transaction.product_id
-      );
-    });
-
     const sortedLatestInfo = [
       ...(receipt.receipt.in_app || []),
       ...receipt.latest_receipt_info,
@@ -214,14 +303,28 @@ export default class Apple extends IAPProvider {
     const priorTransactions = sortedLatestInfo.filter((item) => {
       return (
         item.original_transaction_id === transaction.original_transaction_id &&
+        item.transaction_id !== transaction.transaction_id &&
         parseInt(item.purchase_date_ms) <=
           parseInt(transaction.purchase_date_ms)
       );
     });
 
-    const originalOrder = this.getOriginalOrder(transaction, priorTransactions);
+    let renewalInfo = null;
+
+    const latestOrder = sortedLatestInfo[0];
+    if (latestOrder.transaction_id === transaction.transaction_id) {
+      renewalInfo = receipt.pending_renewal_info?.find((item) => {
+        return (
+          item.original_transaction_id ===
+            transaction.original_transaction_id &&
+          item.product_id === transaction.product_id
+        );
+      });
+    }
+
+    const originalOrder = this.getOriginalOrder(transaction, sortedLatestInfo);
     const linkedOrder =
-      priorTransactions.length > 1 ? priorTransactions[1] : null;
+      priorTransactions.length > 0 ? priorTransactions[0] : null;
 
     // For subscriptions we use the 'web_order_line_item_id' instead of 'transaction_id'
     // to identify a Purchase
@@ -238,30 +341,34 @@ export default class Apple extends IAPProvider {
     purchase.isTrial = transaction.is_trial_period === "true";
     purchase.isIntroOfferPeriod =
       transaction.is_in_intro_offer_period === "true";
-    purchase.isSubscriptionRenewable =
-      renewalInfo?.auto_renew_status === "1" || false;
-    purchase.isSubscriptionRetryPeriod =
-      renewalInfo?.is_in_billing_retry_period === "1" || false;
+    purchase.isSubscriptionRenewable = false;
+    purchase.isSubscriptionRetryPeriod = false;
     purchase.isSubscriptionGracePeriod = false;
     purchase.isSubscriptionPaused = false; // Not supported by Apple
     purchase.subscriptionRenewalProductSku = null;
+    purchase.productType = "renewable_subscription";
 
-    if (
-      renewalInfo?.auto_renew_product_id &&
-      renewalInfo?.auto_renew_product_id !== purchase.productSku
-    ) {
-      purchase.subscriptionRenewalProductSku =
-        renewalInfo?.auto_renew_product_id;
+    if (renewalInfo) {
+      purchase.isSubscriptionRenewable = renewalInfo.auto_renew_status === "1";
+      purchase.isSubscriptionRetryPeriod =
+        renewalInfo.is_in_billing_retry_period === "1";
+
+      if (
+        renewalInfo.auto_renew_product_id &&
+        renewalInfo.auto_renew_product_id !== purchase.productSku
+      ) {
+        purchase.subscriptionRenewalProductSku =
+          renewalInfo.auto_renew_product_id;
+      }
     }
 
     if (originalOrder && originalOrder.subscription_group_identifier) {
       purchase.subscriptionGroup = originalOrder.subscription_group_identifier;
     }
 
-    // Purchase a trial conversion if this one is not a trial, but the one before it is
-    if (!purchase.isTrial && priorTransactions.length > 1) {
-      purchase.isTrialConversion =
-        priorTransactions[1].is_trial_period === "true";
+    // Purchase is a trial conversion if this one is not a trial, but the one before it is
+    if (!purchase.isTrial && linkedOrder) {
+      purchase.isTrialConversion = linkedOrder.is_trial_period === "true";
     }
 
     // Subscription is active if the expiration date is in future, or if Grace Period is set and is still in future
@@ -320,7 +427,7 @@ export default class Apple extends IAPProvider {
     purchase: Purchase,
     renewalInfo?: ApplePendingRenewalInfo
   ): CancellationReason {
-    let cancellationReason: CancellationReason;
+    let cancellationReason: CancellationReason = null;
     if (purchase.isRefunded) {
       cancellationReason = "refunded";
     } else if (renewalInfo && renewalInfo.expiration_intent === "1") {
