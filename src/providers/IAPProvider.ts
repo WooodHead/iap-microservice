@@ -37,6 +37,14 @@ export class IAPProvider {
       sku,
       includeNewer
     );
+    return this.processParsedReceipt(parsedReceipt, userId, syncUserId);
+  }
+
+  async processParsedReceipt(
+    parsedReceipt: ParsedReceipt,
+    userId?: string,
+    syncUserId?: boolean
+  ): Promise<PurchaseEvent> {
     // Grab our version of the latest purchase from the db so we can compare it later
     const latestPurchase = parsedReceipt.purchases[0];
     let dbPurchase = null;
@@ -69,9 +77,12 @@ export class IAPProvider {
     // If userId was not passed, lookup user ID from past purchases,
     // if it was, check that it matches what we have on file.
     // If it doesn't match, update all existing purchases with the new userId
-    const existingUserId = await db.getUserId(
-      parsedReceipt.purchases.map((item) => item.orderId)
-    );
+    const orderIds = parsedReceipt.purchases.map((item) => item.orderId);
+    if (parsedReceipt.purchases[0].isSubscription) {
+      orderIds.push(parsedReceipt.purchases[0].originalOrderId);
+    }
+
+    const existingUserId = await db.getUserId(orderIds);
     if (!userId) {
       userId = existingUserId;
     } else if (
@@ -86,11 +97,9 @@ export class IAPProvider {
     let dbReceipt = await db.getReceiptByHash(parsedReceipt.receipt.hash);
     if (!dbReceipt) {
       dbReceipt = await db.createReceipt(parsedReceipt.receipt);
-    } else {
-      if (userId) {
-        dbReceipt.userId = userId;
-      }
-      dbReceipt = await db.updateReceipt(dbReceipt);
+    } else if (userId && dbReceipt.userId !== userId) {
+      dbReceipt.userId = userId;
+      dbReceipt = await db.updateReceipt(parsedReceipt.receipt);
     }
 
     // parseReceipt will return purchases sorted desc. Reverse them so we save them
@@ -376,17 +385,15 @@ export class IAPProvider {
     if (
       !newPurchase.isSubscription ||
       !oldPurchase ||
-      oldPurchase.originalOrderId !== newPurchase.originalOrderId
+      oldPurchase.originalOrderId !== newPurchase.originalOrderId ||
+      (oldPurchase.subscriptionStatus === "expired" &&
+        newPurchase.subscriptionStatus === "active")
     ) {
       serverUpdateType = "purchase";
     } else if (!oldPurchase.isRefunded && newPurchase.isRefunded) {
       serverUpdateType = "refund";
-    } else if (oldPurchase.orderId !== newPurchase.orderId) {
-      if (oldPurchase.productSku !== newPurchase.productSku) {
-        serverUpdateType = "subscription_replace";
-      } else {
-        serverUpdateType = "subscription_renewal";
-      }
+    } else if (oldPurchase.productSku !== newPurchase.productSku) {
+      serverUpdateType = "subscription_replace";
     } else if (
       oldPurchase.subscriptionStatus !== newPurchase.subscriptionStatus
     ) {
@@ -412,6 +419,8 @@ export class IAPProvider {
       ) {
         serverUpdateType = "subscription_product_change";
       }
+    } else if (oldPurchase.orderId !== newPurchase.orderId) {
+      serverUpdateType = "subscription_renewal";
     }
 
     return serverUpdateType;

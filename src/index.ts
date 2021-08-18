@@ -279,10 +279,29 @@ api.post("/webhook/apple", async (req, res) => {
     logger.debug("Will not relay apple webhook");
   }
 
-  await db.addIncomingNotification("ios", req.body);
-  const provider = getProvider("ios");
-  const purchaseEvent = await provider.serverNotification(req.body);
-  await provider.sendPurchaseWebhook(purchaseEvent);
+  try {
+    await db.addIncomingNotification("ios", req.body);
+    const provider = getProvider("ios");
+    const purchaseEvent = await provider.serverNotification(req.body);
+    await provider.sendPurchaseWebhook(purchaseEvent);
+  } catch (e) {
+    logger.error(`Failed to process apple webhook: ${e.message}`);
+  }
+
+  res.sendStatus(200);
+});
+
+api.post("/webhook/google", async (req, res) => {
+  logger.debug("/webhook/google");
+  // Google server-server notification
+  try {
+    await db.addIncomingNotification("android", req.body);
+    const provider = getProvider("android");
+    const purchaseEvent = await provider.serverNotification(req.body);
+    await provider.sendPurchaseWebhook(purchaseEvent);
+  } catch (e) {
+    logger.error(`Failed to process google webhook: ${e.message}`);
+  }
 
   res.sendStatus(200);
 });

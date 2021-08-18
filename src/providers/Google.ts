@@ -1,8 +1,15 @@
 import { google, GoogleApis } from "googleapis";
 import { androidpublisher_v3 } from "googleapis/build/src/apis/androidpublisher/v3";
 
+import db from "../database";
 import { getLogger } from "../logging";
-import { ParsedReceipt, Purchase, Receipt } from "../types";
+import {
+  CancellationReason,
+  ParsedReceipt,
+  Purchase,
+  PurchaseEvent,
+  Receipt,
+} from "../types";
 import { IAPProvider } from "./IAPProvider";
 
 const logger = getLogger("Google");
@@ -102,6 +109,41 @@ export class Google extends IAPProvider {
       }
     }
     return purchase;
+  }
+
+  async serverNotification(notification: any): Promise<PurchaseEvent> {
+    const buff = Buffer.from(notification.message.data, "base64");
+    const json = buff.toString("utf-8");
+    const payload = JSON.parse(json);
+
+    let token;
+    let sku;
+    if (payload.subscriptionNotification !== undefined) {
+      token = payload.subscriptionNotification.purchaseToken;
+      sku = payload.subscriptionNotification.subscriptionId;
+    } else if (payload.oneTimeProductNotification !== undefined) {
+      token = payload.oneTimeProductNotification.purchaseToken;
+      sku = payload.oneTimeProductNotification.sku;
+    } else {
+      throw new Error("Unknown notification type");
+    }
+    const response = await this.validate(token, sku);
+    const parsedReceipt = await this.parseReceipt(response, token, sku, false);
+
+    // Update the purchase date to the event time of the notification
+    const receiptDate = new Date(parseInt(payload.eventTimeMillis));
+    parsedReceipt.receipt.receiptDate = receiptDate;
+    if (payload.subscriptionNotification !== undefined) {
+      const dbPurchase = await db.getPurchaseByOrderId(
+        parsedReceipt.purchases[0].orderId
+      );
+      if (!dbPurchase) {
+        parsedReceipt.purchases[0].purchaseDate = receiptDate;
+        parsedReceipt.purchases[0].receiptDate = receiptDate;
+      }
+    }
+
+    return this.processParsedReceipt(parsedReceipt);
   }
 
   async parseReceipt(
@@ -258,9 +300,17 @@ export class Google extends IAPProvider {
       isSubscriptionActive,
       isSubscriptionRenewable: transaction.autoRenewing,
       isSubscriptionRetryPeriod:
-        isSubscriptionActive && transaction.autoRenewing,
-      isSubscriptionGracePeriod: false,
-      isSubscriptionPaused: false,
+        !isSubscriptionActive && // the subscription has expired
+        transaction.autoRenewing && // but it's renewing
+        transaction.paymentState === 0, // and payment hasn't been received
+      isSubscriptionGracePeriod:
+        isSubscriptionActive && // the subscription hasn't expired
+        transaction.autoRenewing && // and it's renewing
+        transaction.paymentState === 0, // but payment hasn't been received
+      isSubscriptionPaused:
+        !isSubscriptionActive && // the subscription has expired
+        transaction.autoRenewing && // but it will renew
+        transaction.paymentState === 1, // because it's been paid for
 
       // @TODO - Will need to look up previous transactions in the database to compare
       isTrialConversion: false,
@@ -273,7 +323,7 @@ export class Google extends IAPProvider {
       subscriptionStatus: null,
       subscriptionGroup: null,
       subscriptionRenewalProductSku: null, // @TODO: Probably found via real-time notifications(?)
-      cancellationReason: null,
+      cancellationReason: this.getCancellationReason(transaction),
       expirationDate,
       gracePeriodEndDate: null,
       linkedToken: transaction.linkedPurchaseToken,
@@ -309,26 +359,6 @@ export class Google extends IAPProvider {
       }
     }
 
-    if (transaction.cancelSurveyResult) {
-      purchase.cancellationReason = "customer_cancelled";
-    } else if (transaction.cancelReason == 1) {
-      purchase.cancellationReason = "billing_error";
-    } else if (transaction.cancelReason == 2) {
-      purchase.cancellationReason = "subscription_replaced";
-    } else if (transaction.cancelReason == 3) {
-      purchase.cancellationReason = "developer_cancelled";
-    }
-
-    purchase.isSubscriptionGracePeriod =
-      transaction.paymentState == 0 && // payment hasn't been received
-      purchase.isSubscriptionActive && // and the subscription hasn't expired
-      purchase.isSubscriptionRenewable; // and it's renewing
-
-    purchase.isSubscriptionPaused =
-      transaction.paymentState == 1 && // payment hast been received
-      !purchase.isSubscriptionActive && // and the subscription has expired
-      purchase.isSubscriptionRenewable; // and it's renewing
-
     if (purchase.isSubscriptionGracePeriod) {
       purchase.gracePeriodEndDate = expirationDate;
     }
@@ -338,5 +368,21 @@ export class Google extends IAPProvider {
     purchase.subscriptionStatus = this.getSubscriptionStatus(purchase);
 
     return purchase;
+  }
+
+  getCancellationReason(
+    transaction: androidpublisher_v3.Schema$SubscriptionPurchase
+  ): CancellationReason {
+    let cancellationReason: CancellationReason = null;
+    if (transaction.cancelSurveyResult) {
+      cancellationReason = "customer_cancelled";
+    } else if (transaction.cancelReason == 1) {
+      cancellationReason = "billing_error";
+    } else if (transaction.cancelReason == 2) {
+      cancellationReason = "subscription_replaced";
+    } else if (transaction.cancelReason == 3) {
+      cancellationReason = "developer_cancelled";
+    }
+    return cancellationReason;
   }
 }
