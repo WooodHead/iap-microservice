@@ -34,7 +34,7 @@ export type SubscriptionStatus =
   | "paused";
 
 export type PurchaseEventType =
-  | "unknown"
+  | "no_change"
   | "purchase"
   | "refund"
   | "subscription_renewal"

@@ -372,7 +372,7 @@ export class IAPProvider {
     oldPurchase: Purchase,
     newPurchase: Purchase
   ): PurchaseEventType {
-    let serverUpdateType: PurchaseEventType = "unknown";
+    let serverUpdateType: PurchaseEventType = "no_change";
     if (
       !newPurchase.isSubscription ||
       !oldPurchase ||
@@ -382,7 +382,11 @@ export class IAPProvider {
     } else if (!oldPurchase.isRefunded && newPurchase.isRefunded) {
       serverUpdateType = "refund";
     } else if (oldPurchase.orderId !== newPurchase.orderId) {
-      serverUpdateType = "subscription_renewal";
+      if (oldPurchase.productSku !== newPurchase.productSku) {
+        serverUpdateType = "subscription_replace";
+      } else {
+        serverUpdateType = "subscription_renewal";
+      }
     } else if (
       oldPurchase.subscriptionStatus !== newPurchase.subscriptionStatus
     ) {
@@ -390,10 +394,23 @@ export class IAPProvider {
         serverUpdateType = "subscription_renewal_retry";
       } else if (newPurchase.subscriptionStatus === "cancelled") {
         serverUpdateType = "subscription_cancel";
-      } else if (oldPurchase.subscriptionStatus === "cancelled") {
-        serverUpdateType = "subscription_uncancel";
       } else if (newPurchase.subscriptionStatus === "expired") {
-        serverUpdateType = "subscription_expire";
+        if (oldPurchase.isSubscriptionGracePeriod) {
+          serverUpdateType = "subscription_grace_period_expire";
+        } else {
+          serverUpdateType = "subscription_expire";
+        }
+      } else if (
+        oldPurchase.subscriptionStatus === "cancelled" &&
+        newPurchase.subscriptionStatus === "active"
+      ) {
+        serverUpdateType = "subscription_uncancel";
+      } else if (
+        !oldPurchase.subscriptionRenewalProductSku &&
+        newPurchase.subscriptionRenewalProductSku &&
+        newPurchase.productSku !== newPurchase.subscriptionRenewalProductSku
+      ) {
+        serverUpdateType = "subscription_product_change";
       }
     }
 
@@ -402,8 +419,8 @@ export class IAPProvider {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async sendPurchaseWebhook(purchaseEvent: PurchaseEvent): Promise<void> {
-    if (purchaseEvent.type === "unknown") {
-      logger.debug("Will not send purchase webhook: Unknown update type");
+    if (purchaseEvent.type === "no_change") {
+      logger.debug("Will not send purchase webhook: no_change update type");
     } else if (process.env.WEBHOOK_OUTGOING_ENDPOINT) {
       try {
         await fetch(process.env.WEBHOOK_OUTGOING_ENDPOINT, {

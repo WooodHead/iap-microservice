@@ -26,6 +26,7 @@ const validateAuthTokenMiddleware = (req: any, res: any, next: any) => {
   if (req.headers["authorization"] === `ApiKey ${process.env.API_KEY}`) {
     next();
   } else {
+    logger.warn("Invalid auth token");
     res.status(401).send({ error: "Invalid auth token" });
   }
 };
@@ -247,12 +248,28 @@ api.post("/webhook/apple", async (req, res) => {
   if (process.env.WEBHOOK_RELAY_APPLE_ENDPOINT) {
     try {
       // Relay the message forward
+      const forwardHeaders = [
+        "Content-Type",
+        "User-Agent",
+        "Apple-Originating-System",
+        "Apple-Seq",
+        "Apple-Tk",
+        "B3",
+        "X-Apple-Jingle-Correlation-Key",
+        "X-Apple-Request-Uuid",
+        "X-B3-Spanid",
+        "X-B3-Traceid",
+      ];
+      const headers: any = {};
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        if (forwardHeaders.indexOf(req.rawHeaders[i]) > -1) {
+          headers[req.rawHeaders[i]] = req.rawHeaders[i + 1];
+        }
+      }
       await fetch(process.env.WEBHOOK_RELAY_APPLE_ENDPOINT, {
-        method: "post",
-        body: JSON.stringify(req.body),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        method: req.method,
+        body: req.body,
+        headers: headers,
       });
       logger.debug("Successfully relayed apple webhook");
     } catch (e) {
