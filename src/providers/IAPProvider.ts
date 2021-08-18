@@ -113,19 +113,6 @@ export class IAPProvider {
         purchase.userId = userId;
       }
 
-      if (
-        purchase.platform === "android" &&
-        purchase.isSubscription &&
-        purchase.linkedToken
-      ) {
-        const linkedHash = this.getHash(purchase.linkedToken);
-        const linkedPurchases = await db.getPurchasesByReceiptHash(linkedHash);
-        if (linkedPurchases.length) {
-          purchase.linkedOrderId = linkedPurchases[0].orderId;
-          purchase.originalOrderId = linkedPurchases[0].originalOrderId;
-        }
-      }
-
       let dbPurchase = await db.getPurchaseByOrderId(purchase.orderId);
 
       if (purchase.originalOrderId) {

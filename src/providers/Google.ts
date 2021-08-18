@@ -249,16 +249,36 @@ export class Google extends IAPProvider {
   ): Promise<Purchase> {
     const purchaseDate = new Date(parseInt(transaction.startTimeMillis));
 
-    // Try to re-create the order ID history if the order has '..' in it
-    const orderIdSplit = transaction.orderId.split("..");
-    const originalOrderId = orderIdSplit[0];
+    let originalOrderId = null;
     let linkedOrderId = null;
-    if (orderIdSplit.length > 1) {
-      const orderNum = parseInt(orderIdSplit[1]);
-      if (orderNum === 0) {
-        linkedOrderId = originalOrderId;
-      } else {
-        linkedOrderId = `${originalOrderId}..${orderNum - 1}`;
+    let isTrialConversion = false;
+    if (transaction.linkedPurchaseToken) {
+      const linkedHash = this.getHash(transaction.linkedPurchaseToken);
+      const linkedPurchases = await db.getPurchasesByReceiptHash(linkedHash);
+      if (linkedPurchases.length) {
+        linkedOrderId = linkedPurchases[0].orderId;
+        originalOrderId = linkedPurchases[0].originalOrderId;
+        isTrialConversion =
+          linkedPurchases[0].isTrial && transaction.paymentState !== 2;
+      }
+    } else {
+      // Try to re-create the order ID history if the order has '..' in it
+      const orderIdSplit = transaction.orderId.split("..");
+      originalOrderId = orderIdSplit[0];
+
+      if (orderIdSplit.length > 1) {
+        const orderNum = parseInt(orderIdSplit[1]);
+        if (orderNum === 0) {
+          linkedOrderId = originalOrderId;
+        } else {
+          linkedOrderId = `${originalOrderId}..${orderNum - 1}`;
+        }
+
+        const linkedPurchase = await db.getPurchaseByOrderId(linkedOrderId);
+        isTrialConversion =
+          linkedPurchase &&
+          linkedPurchase.isTrial &&
+          transaction.paymentState !== 2;
       }
     }
 
@@ -269,15 +289,15 @@ export class Google extends IAPProvider {
       linkedPurchaseId: null,
       originalPurchaseId: null,
       userId: null,
-      productId: null, // @TODO
+      productId: null,
       receiptId: null,
       isSandbox:
         transaction.purchaseType !== undefined &&
         transaction.purchaseType === 0,
-      price: 0, // @TODO
-      currency: "", // @TODO
-      convertedPrice: 0, // @TODO
-      convertedCurrency: "", // @TODO
+      price: 0,
+      currency: "",
+      convertedPrice: 0,
+      convertedCurrency: "",
       receiptDate: purchaseDate,
       isSubscription: true,
       orderId: transaction.orderId,
@@ -291,7 +311,7 @@ export class Google extends IAPProvider {
       // Refunds are sent via real-time notifications using 'SUBSCRIPTION_REVOKED' notification
       // See https://developer.android.com/google/play/billing/subscriptions#revoke
       // Perhaps also via https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.voidedpurchases/list
-      isRefunded: false, // #TODO
+      isRefunded: false, // @TODO
       refundDate: null, // @TODO
       refundReason: null, // @TODO
 
@@ -312,8 +332,7 @@ export class Google extends IAPProvider {
         transaction.autoRenewing && // but it will renew
         transaction.paymentState === 1, // because it's been paid for
 
-      // @TODO - Will need to look up previous transactions in the database to compare
-      isTrialConversion: false,
+      isTrialConversion,
 
       // Additional Subscription Info
       originalOrderId,
