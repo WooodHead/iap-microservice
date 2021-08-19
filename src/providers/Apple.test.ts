@@ -160,7 +160,7 @@ describe("Helper function tests", () => {
         isSubscriptionActive: true,
       },
       null,
-      undefined,
+      null,
     ],
   ]).test(
     "getSubscriptionPeriodType %s %s %s",
@@ -558,6 +558,8 @@ describe("Process Subscription Tests", () => {
       receipt: {
         in_app: [
           {
+            original_transaction_id: "abc",
+            transaction_id: "1",
             purchase_date_ms: "1600000001",
             expires_date_ms: "10000",
             is_trial_period: "false",
@@ -567,11 +569,15 @@ describe("Process Subscription Tests", () => {
       latest_receipt_info: [
         {
           // I am the newest receipt
+          original_transaction_id: "abc",
+          transaction_id: "1",
           purchase_date_ms: "1600000001",
           expires_date_ms: "10000",
           is_trial_period: "false",
         },
         {
+          original_transaction_id: "abc",
+          transaction_id: "0",
           purchase_date_ms: "1600000000",
           expires_date_ms: "10000",
           is_trial_period: "true",
