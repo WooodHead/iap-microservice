@@ -326,6 +326,10 @@ api.get("/cron", async (req, res) => {
   res.sendStatus(200);
 });
 
+api.get("/healthcheck", (req, res) => {
+  res.sendStatus(200);
+});
+
 http.createServer(api).listen(port, async () => {
   logger.info(`Server started on port ${port}...`);
 });
