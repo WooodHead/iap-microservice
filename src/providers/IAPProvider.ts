@@ -98,7 +98,11 @@ export class IAPProvider {
     if (!dbReceipt) {
       dbReceipt = await db.createReceipt(parsedReceipt.receipt);
     } else if (userId && dbReceipt.userId !== userId) {
-      dbReceipt.userId = userId;
+      parsedReceipt.receipt = {
+        ...dbReceipt,
+        ...parsedReceipt.receipt,
+        userId: userId,
+      };
       dbReceipt = await db.updateReceipt(parsedReceipt.receipt);
     }
 

@@ -1,0 +1,4 @@
+.idea
+dist
+Dockerfile
+node_modules

@@ -1,0 +1,36 @@
+name: Deploy to Cloud Run Dev
+on:
+  push:
+    branches:
+      - master
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install modules
+        run: yarn
+      - name: Run tests
+        run: yarn ci
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v2
+        name: Check out code
+      - uses: mr-smithers-excellent/docker-build-push@v5
+        name: Build & push Docker image
+        with:
+          image: buzzy-dev/iap-microservice
+          tags: latest, $GITHUB_SHA
+          registry: gcr.io
+          dockerfile: Dockerfile
+          username: _json_key
+          password: ${{ secrets.GCP_SA_JSON_DEV }}
+      - uses: google-github-actions/deploy-cloudrun@main
+        name: Update Cloud Run service
+        with:
+          credentials: ${{ secrets.GCP_SA_JSON_DEV }}
+          image: gcr.io/buzzy-dev/iap-microservice:${{ github.sha }}
+          service: buzzy-iap-microservice-dev
+          region: us-east1
