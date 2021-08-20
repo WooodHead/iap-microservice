@@ -78,7 +78,10 @@ export class IAPProvider {
     // if it was, check that it matches what we have on file.
     // If it doesn't match, update all existing purchases with the new userId
     const orderIds = parsedReceipt.purchases.map((item) => item.orderId);
-    if (parsedReceipt.purchases[0].isSubscription) {
+    if (
+      parsedReceipt.purchases[0].isSubscription &&
+      parsedReceipt.purchases[0].originalOrderId
+    ) {
       orderIds.push(parsedReceipt.purchases[0].originalOrderId);
     }
 
