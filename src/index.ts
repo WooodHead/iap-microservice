@@ -60,6 +60,7 @@ api.post("/receipt", validateAuthTokenMiddleware, async (req, res) => {
     const platform = req.body.platform;
     const userId = req.body.user_id || null;
     const syncUserId = !!req.body.sync_user;
+    const skipWebhook = !!req.body.skip_webhook;
 
     const provider = getProvider(platform);
     const purchaseEvent = await provider.processToken(
@@ -70,7 +71,9 @@ api.post("/receipt", validateAuthTokenMiddleware, async (req, res) => {
       syncUserId
     );
     res.send(purchaseEvent.data);
-    await provider.sendPurchaseWebhook(purchaseEvent);
+    if (!skipWebhook) {
+      await provider.sendPurchaseWebhook(purchaseEvent);
+    }
   } catch (e) {
     logger.error(e.message);
     res.status(500);
