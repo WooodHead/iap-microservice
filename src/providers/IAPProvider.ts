@@ -52,6 +52,8 @@ export class IAPProvider {
       dbPurchase = await db.getLatestPurchaseByOriginalOrderId(
         latestPurchase.originalOrderId
       );
+    } else {
+      dbPurchase = await db.getPurchaseByOrderId(latestPurchase.orderId);
     }
 
     const purchase = await this.saveParsedReceipt(
@@ -377,7 +379,6 @@ export class IAPProvider {
   ): PurchaseEventType {
     let serverUpdateType: PurchaseEventType = "no_change";
     if (
-      !newPurchase.isSubscription ||
       !oldPurchase ||
       oldPurchase.originalOrderId !== newPurchase.originalOrderId ||
       (oldPurchase.subscriptionStatus === "expired" &&

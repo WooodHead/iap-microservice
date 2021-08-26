@@ -315,18 +315,24 @@ api.get("/cron", async (req, res) => {
   // const provider = getProvider("android") as Google;
   // const result = await provider.getVoidedPurchases();
 
-  const purchases = await db.getPurchasesToRefresh();
-  for (const purchase of purchases) {
-    const receipt = await db.getReceiptById(purchase.receiptId);
-    const provider = getProvider(purchase.platform);
-    const purchaseEvent = await provider.processToken(
-      receipt.token,
-      purchase.productSku,
-      true
-    );
-    await provider.sendPurchaseWebhook(purchaseEvent);
+  try {
+    const purchases = await db.getPurchasesToRefresh();
+    for (const purchase of purchases) {
+      const receipt = await db.getReceiptById(purchase.receiptId);
+      const provider = getProvider(purchase.platform);
+      const purchaseEvent = await provider.processToken(
+        receipt.token,
+        purchase.productSku,
+        true
+      );
+
+      await provider.sendPurchaseWebhook(purchaseEvent);
+    }
+    res.send("OK");
+  } catch (e) {
+    logger.error(`Cron failed: ${e}`);
+    res.send(500);
   }
-  res.sendStatus(200);
 });
 
 api.get("/healthcheck", (req, res) => {
