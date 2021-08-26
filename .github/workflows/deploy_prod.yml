@@ -26,11 +26,11 @@ jobs:
           registry: gcr.io
           dockerfile: Dockerfile
           username: _json_key
-          password: ${{ secrets.GCP_SA_JSON_DEV }}
+          password: ${{ secrets.GCP_SA_JSON_PROD }}
       - uses: google-github-actions/deploy-cloudrun@main
         name: Update Cloud Run service
         with:
-          credentials: ${{ secrets.GCP_SA_JSON_DEV }}
+          credentials: ${{ secrets.GCP_SA_JSON_PROD }}
           image: gcr.io/buzzy-prod/iap-microservice:${{ github.sha }}
           service: buzzy-iap-prod
           region: us-central1
