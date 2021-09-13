@@ -236,7 +236,7 @@ describe("Helper function tests", () => {
       {
         transaction_id: "300",
         purchase_date_ms: "300000",
-        in_app: true,
+        in_app: false,
       },
       {
         transaction_id: "200",
@@ -299,7 +299,7 @@ describe("Helper function tests", () => {
       {
         transaction_id: "300",
         purchase_date_ms: "300000",
-        in_app: true,
+        in_app: false,
       },
       {
         transaction_id: "200",
