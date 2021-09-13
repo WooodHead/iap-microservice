@@ -88,7 +88,12 @@ export class IAPProvider {
     }
 
     const existingUserId = await db.getUserId(orderIds);
-    if (!userId) {
+    if (!userId && !existingUserId) {
+      // This usually happens on first purchase when the webhook from Apple comes in faster
+      // than the receipt from the app backend.
+      // We need to wait for the backend first to tell us the user id.
+      throw Error("Ignoring purchase. Cannot determine userId.");
+    } else if (!userId && existingUserId) {
       userId = existingUserId;
     } else if (
       syncUserId &&
