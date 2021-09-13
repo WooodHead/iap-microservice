@@ -317,6 +317,7 @@ api.get("/cron", async (req, res) => {
 
   try {
     const purchases = await db.getPurchasesToRefresh();
+    logger.info(`Refreshing ${purchases.length} purchases`);
     for (const purchase of purchases) {
       const receipt = await db.getReceiptById(purchase.receiptId);
       const provider = getProvider(purchase.platform);

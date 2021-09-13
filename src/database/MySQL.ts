@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import moment from "moment";
 
 import { Platform, Product, Purchase, Receipt } from "../types";
 import { Database } from "./Database";
@@ -99,9 +100,24 @@ export class MySQL implements Database {
   }
 
   async getPurchasesToRefresh(): Promise<Purchase[]> {
+    const oneWeekAgo = moment().subtract(7, "days").format();
+    const halfHourAgo = moment().subtract(30, "minutes").format();
     const purchases = await this.prisma.purchase.findMany({
       where: {
-        OR: [{ isSubscriptionActive: true }, { isSubscriptionRenewable: true }],
+        OR: [
+          { isSubscriptionActive: true },
+          { isSubscriptionRenewable: true },
+          {
+            expirationDate: {
+              gt: oneWeekAgo,
+            },
+          },
+        ],
+        NOT: {
+          modifiedAt: {
+            lt: halfHourAgo,
+          },
+        },
       },
       distinct: ["originalOrderId"],
       orderBy: {
