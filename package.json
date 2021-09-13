@@ -1,6 +1,6 @@
 {
   "name": "iap-microservice",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Microservice for processing Apple and Google in app purchases",
   "main": "index.js",
   "author": "se1exin",
