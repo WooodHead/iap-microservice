@@ -383,44 +383,64 @@ export class IAPProvider {
     newPurchase: Purchase
   ): PurchaseEventType {
     let serverUpdateType: PurchaseEventType = "no_change";
-    if (
-      !oldPurchase ||
-      oldPurchase.originalOrderId !== newPurchase.originalOrderId ||
-      (oldPurchase.subscriptionStatus === "expired" &&
-        newPurchase.subscriptionStatus === "active")
-    ) {
-      serverUpdateType = "purchase";
-    } else if (!oldPurchase.isRefunded && newPurchase.isRefunded) {
+
+    // Start with assuming we have not already processed this purchase
+    if (newPurchase.isRefunded) {
       serverUpdateType = "refund";
-    } else if (oldPurchase.productSku !== newPurchase.productSku) {
-      serverUpdateType = "subscription_replace";
-    } else if (
-      oldPurchase.subscriptionStatus !== newPurchase.subscriptionStatus
-    ) {
-      if (newPurchase.subscriptionStatus === "retry_period") {
-        serverUpdateType = "subscription_renewal_retry";
-      } else if (newPurchase.subscriptionStatus === "cancelled") {
-        serverUpdateType = "subscription_cancel";
-      } else if (newPurchase.subscriptionStatus === "expired") {
-        if (oldPurchase.isSubscriptionGracePeriod) {
-          serverUpdateType = "subscription_grace_period_expire";
-        } else {
-          serverUpdateType = "subscription_expire";
-        }
+    } else if (!newPurchase.isSubscription) {
+      serverUpdateType = "purchase";
+    } else if (newPurchase.subscriptionStatus === "retry_period") {
+      serverUpdateType = "subscription_renewal_retry";
+    } else if (newPurchase.subscriptionStatus === "grace_period") {
+      serverUpdateType = "subscription_renewal_retry";
+    } else if (newPurchase.subscriptionStatus === "cancelled") {
+      serverUpdateType = "subscription_cancel";
+    } else if (newPurchase.subscriptionStatus === "expired") {
+      if (oldPurchase.isSubscriptionGracePeriod) {
+        serverUpdateType = "subscription_grace_period_expire";
+      } else {
+        serverUpdateType = "subscription_expire";
+      }
+    } else if (newPurchase.subscriptionStatus === "active") {
+      serverUpdateType = "purchase";
+    }
+
+    if (oldPurchase) {
+      if (this.purchasesEqual(oldPurchase, newPurchase)) {
+        serverUpdateType = "no_change";
+      } else if (
+        oldPurchase.originalOrderId !== newPurchase.originalOrderId ||
+        (oldPurchase.subscriptionStatus === "expired" &&
+          newPurchase.subscriptionStatus === "active")
+      ) {
+        // User has started a new subscription
+        serverUpdateType = "purchase";
       } else if (
         oldPurchase.subscriptionStatus === "cancelled" &&
         newPurchase.subscriptionStatus === "active"
       ) {
         serverUpdateType = "subscription_uncancel";
+      } else if (oldPurchase.productSku !== newPurchase.productSku) {
+        serverUpdateType = "subscription_replace";
       } else if (
         !oldPurchase.subscriptionRenewalProductSku &&
         newPurchase.subscriptionRenewalProductSku &&
         newPurchase.productSku !== newPurchase.subscriptionRenewalProductSku
       ) {
         serverUpdateType = "subscription_product_change";
+      } else if (
+        oldPurchase.isSubscription &&
+        oldPurchase.originalOrderId === newPurchase.originalOrderId &&
+        oldPurchase.orderId === newPurchase.orderId
+      ) {
+        serverUpdateType = "subscription_renewal";
+      } else if (
+        oldPurchase.isSubscription &&
+        oldPurchase.subscriptionStatus === newPurchase.subscriptionStatus
+      ) {
+        // Reset back to no change if there has been none
+        serverUpdateType = "no_change";
       }
-    } else if (oldPurchase.orderId !== newPurchase.orderId) {
-      serverUpdateType = "subscription_renewal";
     }
 
     return serverUpdateType;

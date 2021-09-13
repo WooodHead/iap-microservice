@@ -97,58 +97,6 @@ export default class Apple extends IAPProvider {
     const includeNewer = true;
 
     return this.processToken(token, sku, includeNewer);
-
-    /*
-    if (serverUpdateType === "unknown") {
-      switch (notification.notification_type) {
-        case AppleServerNotificationType.DID_CHANGE_RENEWAL_PREF:
-          if (purchase.subscriptionRenewalProductSku) {
-            serverUpdateType = "subscription_product_change";
-          }
-          break;
-        case AppleServerNotificationType.DID_CHANGE_RENEWAL_STATUS:
-          if (notification.auto_renew_status === "false") {
-            serverUpdateType = "subscription_cancel";
-          } else {
-            serverUpdateType = "subscription_uncancel";
-          }
-          break;
-        case AppleServerNotificationType.DID_FAIL_TO_RENEW:
-          if (purchase.isSubscriptionRenewable) {
-            serverUpdateType = "subscription_renewal_retry";
-          } else {
-            serverUpdateType = "subscription_expire";
-          }
-          break;
-        case AppleServerNotificationType.DID_RECOVER:
-        case AppleServerNotificationType.DID_RENEW:
-        case AppleServerNotificationType.INTERACTIVE_RENEWAL:
-          serverUpdateType = "subscription_renewal";
-          break;
-        case AppleServerNotificationType.INITIAL_BUY:
-          serverUpdateType = "purchase";
-          break;
-        // case AppleServerNotificationType.PRICE_INCREASE_CONSENT:
-        //   serverUpdateType = "purchase";
-        //   break;
-        case AppleServerNotificationType.CANCEL:
-        case AppleServerNotificationType.REFUND:
-          serverUpdateType = "refund";
-          break;
-      }
-      console.log(
-        notification.notification_type,
-        "Fallback to",
-        serverUpdateType
-      );
-    } else {
-      console.log(
-        notification.notification_type,
-        "determined as",
-        serverUpdateType
-      );
-    }
-     */
   }
 
   async parseReceipt(
@@ -465,7 +413,7 @@ export default class Apple extends IAPProvider {
   /**
    * Merge the in_app and latest_receipt_info arrays together into a single array
    * of unique transactions. If a transaction exists in both arrays, the version
-   * inside in_app is kept
+   * inside latest_receipt_info is kept
    * @param inAppTransactions
    * @param latestReceiptInfo
    * @param includeNewer - Include transactions from latest_receipt_info that are newer than the latest in_app purchase
@@ -474,23 +422,28 @@ export default class Apple extends IAPProvider {
     inAppTransactions: AppleInAppPurchaseTransaction[],
     latestReceiptInfo: AppleLatestReceiptInfo[],
     includeNewer: boolean
-  ): AppleInAppPurchaseTransaction[] {
+  ): AppleLatestReceiptInfo[] {
     inAppTransactions.sort(Apple.sortTransactionsDesc);
-    const inAppIds = inAppTransactions.map((item) => item.transaction_id);
-    let orphaned = latestReceiptInfo.filter((item) => {
-      return inAppIds.indexOf(item.transaction_id) === -1;
+    const latestReceiptInfoIds = latestReceiptInfo.map(
+      (item) => item.transaction_id
+    );
+
+    const additionalInApp = inAppTransactions.filter((item) => {
+      return latestReceiptInfoIds.indexOf(item.transaction_id) === -1;
     });
 
     if (!includeNewer) {
-      orphaned = orphaned.filter((item) => {
+      latestReceiptInfo = latestReceiptInfo.filter((item) => {
         return (
-          parseInt(item.purchase_date_ms) <
+          parseInt(item.purchase_date_ms) <=
           parseInt(inAppTransactions[0].purchase_date_ms)
         );
       });
     }
 
-    return inAppTransactions.concat(orphaned).sort(Apple.sortTransactionsDesc);
+    return latestReceiptInfo
+      .concat(additionalInApp)
+      .sort(Apple.sortTransactionsDesc);
   }
 
   static sortTransactionsDesc(

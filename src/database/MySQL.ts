@@ -101,7 +101,6 @@ export class MySQL implements Database {
 
   async getPurchasesToRefresh(): Promise<Purchase[]> {
     const oneWeekAgo = moment().subtract(7, "days").format();
-    const halfHourAgo = moment().subtract(30, "minutes").format();
     const purchases = await this.prisma.purchase.findMany({
       where: {
         OR: [
@@ -113,11 +112,6 @@ export class MySQL implements Database {
             },
           },
         ],
-        NOT: {
-          modifiedAt: {
-            lt: halfHourAgo,
-          },
-        },
       },
       distinct: ["originalOrderId"],
       orderBy: {

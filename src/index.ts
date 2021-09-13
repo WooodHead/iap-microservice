@@ -329,6 +329,7 @@ api.get("/cron", async (req, res) => {
 
       await provider.sendPurchaseWebhook(purchaseEvent);
     }
+    logger.debug("Cron completed.");
     res.send("OK");
   } catch (e) {
     logger.error(`Cron failed: ${e}`);
