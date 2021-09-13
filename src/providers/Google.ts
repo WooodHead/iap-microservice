@@ -356,7 +356,7 @@ export class Google extends IAPProvider {
       purchase.convertedCurrency = product.currency;
       if (!isNaN(priceMicros)) {
         // Note: we store price in cents
-        purchase.price = priceMicros / 10000;
+        purchase.price = (priceMicros / 10000) | 0; // Truncate decimals - we work in cents;
         purchase.currency = transaction.priceCurrencyCode.toUpperCase();
       } else {
         purchase.price = product.price;
