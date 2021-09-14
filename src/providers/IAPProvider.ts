@@ -47,13 +47,11 @@ export class IAPProvider {
   ): Promise<PurchaseEvent> {
     // Grab our version of the latest purchase from the db so we can compare it later
     const latestPurchase = parsedReceipt.purchases[0];
-    let dbPurchase = null;
-    if (latestPurchase.isSubscription) {
+    let dbPurchase = await db.getPurchaseByOrderId(latestPurchase.orderId);
+    if (!dbPurchase && latestPurchase.isSubscription) {
       dbPurchase = await db.getLatestPurchaseByOriginalOrderId(
         latestPurchase.originalOrderId
       );
-    } else {
-      dbPurchase = await db.getPurchaseByOrderId(latestPurchase.orderId);
     }
 
     const purchase = await this.saveParsedReceipt(
@@ -396,11 +394,7 @@ export class IAPProvider {
     } else if (newPurchase.subscriptionStatus === "cancelled") {
       serverUpdateType = "subscription_cancel";
     } else if (newPurchase.subscriptionStatus === "expired") {
-      if (oldPurchase.isSubscriptionGracePeriod) {
-        serverUpdateType = "subscription_grace_period_expire";
-      } else {
-        serverUpdateType = "subscription_expire";
-      }
+      serverUpdateType = "subscription_expire";
     } else if (newPurchase.subscriptionStatus === "active") {
       serverUpdateType = "purchase";
     }
@@ -420,6 +414,11 @@ export class IAPProvider {
         newPurchase.subscriptionStatus === "active"
       ) {
         serverUpdateType = "subscription_uncancel";
+      } else if (
+        newPurchase.subscriptionStatus === "expired" &&
+        oldPurchase.isSubscriptionGracePeriod
+      ) {
+        serverUpdateType = "subscription_grace_period_expire";
       } else if (oldPurchase.productSku !== newPurchase.productSku) {
         serverUpdateType = "subscription_replace";
       } else if (
@@ -431,7 +430,7 @@ export class IAPProvider {
       } else if (
         oldPurchase.isSubscription &&
         oldPurchase.originalOrderId === newPurchase.originalOrderId &&
-        oldPurchase.orderId === newPurchase.orderId
+        oldPurchase.orderId !== newPurchase.orderId
       ) {
         serverUpdateType = "subscription_renewal";
       } else if (
@@ -460,7 +459,9 @@ export class IAPProvider {
             "x-auth-token": process.env.WEBHOOK_AUTH_TOKEN,
           },
         });
-        logger.debug("Successfully sent purchase webhook");
+        logger.debug(
+          `Successfully sent purchase webhook with type ${purchaseEvent.type}`
+        );
       } catch (e) {
         logger.error(`Failed to send purchase webhook: ${e.message}`);
       }
