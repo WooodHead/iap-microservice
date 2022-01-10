@@ -32,9 +32,7 @@ export class MySQL implements Database {
       where: {
         userId,
       },
-      orderBy: {
-        purchaseDate: "desc",
-      },
+      orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
     });
 
     return purchases as Purchase[];
@@ -61,9 +59,7 @@ export class MySQL implements Database {
           { userId, id: originalPurchaseId },
         ],
       },
-      orderBy: {
-        purchaseDate: "desc",
-      },
+      orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
     });
 
     return purchases as Purchase[];
@@ -76,9 +72,7 @@ export class MySQL implements Database {
       where: {
         OR: [{ originalOrderId }, { orderId: originalOrderId }],
       },
-      orderBy: {
-        purchaseDate: "desc",
-      },
+      orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
     });
 
     return purchase as Purchase;
@@ -114,9 +108,7 @@ export class MySQL implements Database {
         ],
       },
       distinct: ["originalOrderId"],
-      orderBy: {
-        purchaseDate: "desc",
-      },
+      orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
     });
 
     return purchases as Purchase[];
@@ -141,9 +133,7 @@ export class MySQL implements Database {
           in: orderIds,
         },
       },
-      orderBy: {
-        purchaseDate: "desc",
-      },
+      orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
     });
 
     return purchase ? purchase.userId : null;
