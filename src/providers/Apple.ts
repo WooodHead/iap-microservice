@@ -114,9 +114,10 @@ export default class Apple extends IAPProvider {
     // up-to-date at the time the receipt is validated.
 
     const isSandbox = this.isSandbox(receiptData);
-    const receiptDate = new Date(
-      parseInt(receiptData.receipt.receipt_creation_date_ms)
+    const receiptCreationDateMs = parseInt(
+      receiptData.receipt.receipt_creation_date_ms
     );
+    const receiptDate = new Date(receiptCreationDateMs);
 
     const receipt: Receipt = {
       platform: "ios",
@@ -129,6 +130,7 @@ export default class Apple extends IAPProvider {
     const transactions = this.mergeTransactions(
       receiptData.receipt.in_app,
       receiptData.latest_receipt_info || [],
+      receiptCreationDateMs,
       includeNewer
     );
 
@@ -416,11 +418,13 @@ export default class Apple extends IAPProvider {
    * inside latest_receipt_info is kept
    * @param inAppTransactions
    * @param latestReceiptInfo
+   * @param receiptCreationDateMs - The receipt_creation_date_ms value from the receipt - only used if includeNewer is false
    * @param includeNewer - Include transactions from latest_receipt_info that are newer than the latest in_app purchase
    */
   mergeTransactions(
     inAppTransactions: AppleInAppPurchaseTransaction[],
     latestReceiptInfo: AppleLatestReceiptInfo[],
+    receiptCreationDateMs: number,
     includeNewer: boolean
   ): AppleLatestReceiptInfo[] {
     inAppTransactions.sort(Apple.sortTransactionsDesc);
@@ -434,10 +438,7 @@ export default class Apple extends IAPProvider {
 
     if (!includeNewer) {
       latestReceiptInfo = latestReceiptInfo.filter((item) => {
-        return (
-          parseInt(item.purchase_date_ms) <=
-          parseInt(inAppTransactions[0].purchase_date_ms)
-        );
+        return parseInt(item.purchase_date_ms) <= receiptCreationDateMs;
       });
     }
 

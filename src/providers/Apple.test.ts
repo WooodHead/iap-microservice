@@ -195,7 +195,7 @@ describe("Helper function tests", () => {
 
   test("Test mergeTransactions - without newer", () => {
     const apple = new Apple("");
-
+    const receiptCreationDateMs = 300000;
     const inAppTransactions: any[] = [
       {
         transaction_id: "100",
@@ -229,6 +229,7 @@ describe("Helper function tests", () => {
     const transactions = apple.mergeTransactions(
       inAppTransactions,
       latestReceiptInfo,
+      receiptCreationDateMs,
       false
     );
 
@@ -254,6 +255,8 @@ describe("Helper function tests", () => {
   test("Test mergeTransactions - with newer", () => {
     const apple = new Apple("");
 
+    const receiptCreationDateMs = 300000;
+
     const inAppTransactions: any[] = [
       {
         transaction_id: "100",
@@ -287,6 +290,7 @@ describe("Helper function tests", () => {
     const transactions = apple.mergeTransactions(
       inAppTransactions,
       latestReceiptInfo,
+      receiptCreationDateMs,
       true
     );
 
