@@ -7,6 +7,7 @@ import fetch from "node-fetch";
 import db from "./database";
 import { getLogger } from "./logging";
 import { getProvider } from "./providers";
+import { Google } from "./providers/Google";
 
 const port = process.env.PORT || 8080;
 
@@ -311,9 +312,28 @@ api.post("/webhook/google", async (req, res) => {
 
 api.get("/cron", async (req, res) => {
   logger.debug("/cron");
-  // // Testing out voided purchases
-  // const provider = getProvider("android") as Google;
-  // const result = await provider.getVoidedPurchases();
+  // // Process Android voided purchases
+  const provider = getProvider("android") as Google;
+  const result = await provider.getVoidedPurchases();
+  for (const receipt of result.voidedPurchases) {
+    const purchase = await db.getPurchaseByOrderId(receipt.orderId);
+    if (!purchase.isRefunded) {
+      logger.info(`Processing voided purchase ${receipt.orderId}`);
+      const parsedReceipt = await provider.parseReceipt(
+        receipt,
+        receipt.purchaseToken,
+        purchase.productSku,
+        false
+      );
+
+      const purchaseEvent = await provider.processParsedReceipt(
+        parsedReceipt,
+        purchase.userId,
+        false
+      );
+      await provider.sendPurchaseWebhook(purchaseEvent);
+    }
+  }
 
   try {
     const purchases = await db.getPurchasesToRefresh();

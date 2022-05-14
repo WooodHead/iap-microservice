@@ -73,7 +73,6 @@ export class Google extends IAPProvider {
   }
 
   async getVoidedPurchases(): Promise<androidpublisher_v3.Schema$VoidedPurchasesListResponse> {
-    // @TODO: Test if we can use this to find refund info on purchases/subscriptions
     const client = await this.getClient();
     const response = await client
       .androidpublisher({
@@ -149,23 +148,32 @@ export class Google extends IAPProvider {
   async parseReceipt(
     receiptData:
       | androidpublisher_v3.Schema$SubscriptionPurchase
-      | androidpublisher_v3.Schema$ProductPurchase,
+      | androidpublisher_v3.Schema$ProductPurchase
+      | androidpublisher_v3.Schema$VoidedPurchase,
     token: string,
     sku: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     includeNewer: boolean
   ): Promise<ParsedReceipt> {
     let purchase;
-    if (receiptData.kind === "androidpublisher#subscriptionPurchase") {
+    let receiptDate;
+    let tokenHash = this.getHash(token);
+    if (receiptData.kind === "androidpublisher#voidedPurchase") {
+      purchase = await this.processVoidedTransaction(receiptData);
+      receiptDate = purchase.refundDate;
+      tokenHash = this.getHash(token + "_voided");
+    } else if (receiptData.kind === "androidpublisher#subscriptionPurchase") {
       purchase = await this.processSubscriptionTransaction(receiptData, sku);
+      receiptDate = purchase.receiptDate;
     } else {
       purchase = await this.processPurchaseTransaction(receiptData, sku);
+      receiptDate = purchase.receiptDate;
     }
 
     const receipt: Receipt = {
       platform: "android",
-      hash: this.getHash(token),
-      receiptDate: purchase.receiptDate,
+      hash: tokenHash,
+      receiptDate: receiptDate,
       token,
       data: receiptData,
     };
@@ -174,6 +182,29 @@ export class Google extends IAPProvider {
       receipt,
       purchases: [purchase],
     };
+  }
+
+  async processVoidedTransaction(
+    transaction: androidpublisher_v3.Schema$VoidedPurchase
+  ): Promise<Purchase> {
+    const purchase = await db.getPurchaseByOrderId(transaction.orderId);
+    if (purchase) {
+      purchase.isRefunded = true;
+      purchase.refundDate = new Date(parseInt(transaction.voidedTimeMillis));
+      purchase.refundReason = this.getVoidedReason(transaction);
+
+      if (purchase.isSubscription) {
+        purchase.isSubscriptionActive = false;
+        purchase.isSubscriptionRenewable = false;
+        purchase.isSubscriptionRetryPeriod = false;
+        purchase.isSubscriptionGracePeriod = false;
+        purchase.subscriptionPeriodType =
+          this.getSubscriptionPeriodType(purchase);
+        purchase.subscriptionState = this.getSubscriptionState(purchase);
+        purchase.subscriptionStatus = this.getSubscriptionStatus(purchase);
+      }
+    }
+    return purchase;
   }
 
   async processPurchaseTransaction(
@@ -200,12 +231,9 @@ export class Google extends IAPProvider {
       productType: "consumable", // @TODO: Non consumable type
       purchaseDate,
       quantity: transaction.quantity,
-
-      // @TODO: Is this info available via https://developer.android.com/google/play/billing/rtdn-reference#one-time?
-      // or https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.voidedpurchases/list
-      isRefunded: false, // #TODO
-      refundDate: null, // @TODO
-      refundReason: null, // @TODO
+      isRefunded: false, // Will be set further below
+      refundDate: null, // Will be set further below
+      refundReason: null, // Will be set further below
       cancellationReason: null,
       expirationDate: null,
       gracePeriodEndDate: null,
@@ -238,6 +266,14 @@ export class Google extends IAPProvider {
       purchase.convertedPrice = product.price;
       purchase.currency = product.currency;
       purchase.convertedCurrency = product.currency;
+    }
+
+    const existingPurchase = await db.getPurchaseByOrderId(purchase.orderId);
+    if (existingPurchase) {
+      // Refunds are handled separately for Android, so we need to make sure we copy in the values here
+      purchase.isRefunded = existingPurchase.isRefunded;
+      purchase.refundDate = existingPurchase.refundDate;
+      purchase.refundReason = existingPurchase.refundReason;
     }
 
     return purchase;
@@ -306,15 +342,9 @@ export class Google extends IAPProvider {
       productType: "renewable_subscription",
       purchaseDate,
       quantity: 1,
-
-      // @TODO
-      // Refunds are sent via real-time notifications using 'SUBSCRIPTION_REVOKED' notification
-      // See https://developer.android.com/google/play/billing/subscriptions#revoke
-      // Perhaps also via https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.voidedpurchases/list
-      isRefunded: false, // @TODO
-      refundDate: null, // @TODO
-      refundReason: null, // @TODO
-
+      isRefunded: false, // Will be set further below
+      refundDate: null, // Will be set further below
+      refundReason: null, // Will be set further below
       isTrial: transaction.paymentState === 2,
       isIntroOfferPeriod: transaction.paymentState === 2, // On Android free trial is intro offer period
       isSubscriptionActive,
@@ -382,6 +412,21 @@ export class Google extends IAPProvider {
       purchase.gracePeriodEndDate = expirationDate;
     }
 
+    const existingPurchase = await db.getPurchaseByOrderId(purchase.orderId);
+    if (existingPurchase) {
+      // Refunds are handled separately for Android, so we need to make sure we copy in the values here
+      purchase.isRefunded = existingPurchase.isRefunded;
+      purchase.refundDate = existingPurchase.refundDate;
+      purchase.refundReason = existingPurchase.refundReason;
+    }
+
+    if (purchase.isRefunded) {
+      purchase.isSubscriptionActive = false;
+      purchase.isSubscriptionRenewable = false;
+      purchase.isSubscriptionRetryPeriod = false;
+      purchase.isSubscriptionGracePeriod = false;
+    }
+
     purchase.subscriptionPeriodType = this.getSubscriptionPeriodType(purchase);
     purchase.subscriptionState = this.getSubscriptionState(purchase);
     purchase.subscriptionStatus = this.getSubscriptionStatus(purchase);
@@ -403,5 +448,36 @@ export class Google extends IAPProvider {
       cancellationReason = "developer_cancelled";
     }
     return cancellationReason;
+  }
+
+  getVoidedReason(
+    transaction: androidpublisher_v3.Schema$VoidedPurchase
+  ):
+    | "other"
+    | "remorse"
+    | "not_received"
+    | "defective"
+    | "accidental_purchase"
+    | "fraud"
+    | "friendly_fraud"
+    | "chargeback" {
+    if (transaction.voidedReason == 0) {
+      return "other";
+    } else if (transaction.voidedReason == 1) {
+      return "remorse";
+    } else if (transaction.voidedReason == 2) {
+      return "not_received";
+    } else if (transaction.voidedReason == 3) {
+      return "defective";
+    } else if (transaction.voidedReason == 4) {
+      return "accidental_purchase";
+    } else if (transaction.voidedReason == 5) {
+      return "fraud";
+    } else if (transaction.voidedReason == 6) {
+      return "friendly_fraud";
+    } else if (transaction.voidedReason == 7) {
+      return "chargeback";
+    }
+    return null;
   }
 }

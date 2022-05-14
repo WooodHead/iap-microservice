@@ -69,7 +69,18 @@ export type Purchase = {
   convertedCurrency: string;
   receiptDate: Date;
   refundDate: Date | null;
-  refundReason: "issue" | "subscription_replace" | "other" | null;
+  refundReason:
+    | "issue"
+    | "subscription_replace"
+    | "other"
+    | "remorse"
+    | "not_received"
+    | "defective"
+    | "accidental_purchase"
+    | "fraud"
+    | "friendly_fraud"
+    | "chargeback"
+    | null;
 
   // Subscription Flags
   isSubscription: boolean;
